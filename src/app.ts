@@ -37,6 +37,8 @@ import { cronRouter } from "./modules/internal/cron.router.js";
 import { adminPaymentsRouter, cashfreeWebhookHandler, orderPaymentsRouter, webhookRateLimiter } from "./modules/payments/payments.router.js";
 
 export const app = express();
+// Vercel looks for the app in src/app.ts first and needs it as the default export.
+export default app;
 
 // The storefront proxies /api from the same host: trust it to report the real visitor address, so rate limits
 // and stored IPs are per visitor instead of one shared proxy address.
