@@ -14,7 +14,8 @@
     "seed": "tsx src/database/seed.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "prisma:deploy": "prisma migrate deploy",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:db": "node --import tsx --test \"src/**/*.dbtest.ts\""
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

@@ -7,6 +7,7 @@ import {
   handleDeleteMedia,
   handleUploadMedia,
   handleReplaceMedia,
+  handleImportFromBlob,
 } from "./media.controller.js";
 import { ALLOWED_IMAGE_TYPES } from "./media.service.js";
 import { requireAdmin } from "../../common/auth.middleware.js";
@@ -64,6 +65,7 @@ mediaRouter.use(requireAdmin);
 
 mediaRouter.get("/", handleGetMedia);
 mediaRouter.post("/upload", uploadMiddleware, handleUploadMedia);
+mediaRouter.post("/import-blob", handleImportFromBlob);
 mediaRouter.post("/:id/replace", uploadMiddleware, handleReplaceMedia);
 mediaRouter.patch("/:id", handleUpdateMedia);
 mediaRouter.delete("/:id", handleDeleteMedia);

@@ -13,6 +13,7 @@ import {
 } from "./media.service.js";
 import { prisma } from "../../database/prisma.js";
 import { publishStagedFile } from "../../common/storage.js";
+import { blobImportAvailable, importFromBlob } from "./blobImport.service.js";
 
 // Expected errors carry a statusCode and a safe message; anything else is logged and replaced.
 function sendError(res: Response, error: any, fallbackMessage: string) {
@@ -50,6 +51,22 @@ export async function handleUpdateMedia(req: Request, res: Response) {
     return res.status(200).json({ status: "success", data: updated });
   } catch (error: any) {
     return sendError(res, error, "The media asset could not be updated.");
+  }
+}
+
+// Finds images put into the Blob store by hand, adds them to the library and links them (see blobImport.service.ts).
+// The caller repeats the request with nextCursor until done is true.
+export async function handleImportFromBlob(req: Request, res: Response) {
+  if (!blobImportAvailable()) {
+    return res.status(400).json({ status: "error", message: "Blob storage is not connected to this server (BLOB_READ_WRITE_TOKEN is not set)." });
+  }
+  try {
+    const cursor = typeof req.body?.cursor === "string" ? req.body.cursor : undefined;
+    const batchSize = Number.isFinite(Number(req.body?.batchSize)) ? Number(req.body.batchSize) : undefined;
+    const report = await importFromBlob({ cursor, batchSize, actorUserId: (req as any).user?.id || null });
+    return res.status(200).json({ status: "success", data: report });
+  } catch (error: any) {
+    return sendError(res, error, "The import from Blob failed.");
   }
 }
 

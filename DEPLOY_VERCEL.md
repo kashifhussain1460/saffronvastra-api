@@ -20,7 +20,7 @@ cron route, uploads and the test suites that touch them). Do the first deploy as
 | Variable | Value |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | the pooled connection string (add `&connection_limit=1` for Postgres behind PgBouncer if the provider recommends it) |
+| `APP_DATABASE_URL` | the Postgres connection string. With the Prisma Postgres integration Vercel adds it with exactly this name. The integration also adds `APP_POSTGRES_URL` and `APP_PRISMA_DATABASE_URL`; on this project all three hold the same address, this app reads only `APP_DATABASE_URL`. If "too many connections" errors appear, add `&connection_limit=1` |
 | `COOKIE_SECRET` | long random string (the API refuses to start in production without it) |
 | `CORS_ORIGIN` | storefront address, e.g. `https://www.saffronvastra.com` |
 | `APP_URL` | the same storefront address (used in email links) |
@@ -38,7 +38,7 @@ Migrations are applied by hand, not on every deploy (preview deployments would o
 Run from your machine or CI, with the **direct** (non-pooled) address:
 
 ```
-DATABASE_URL="<direct connection string>" npx prisma migrate deploy
+APP_DATABASE_URL="<direct connection string>" npx prisma migrate deploy
 ```
 
 An empty database gets the baseline and both payment migrations. A database created earlier with `db push` needs
@@ -76,3 +76,21 @@ payment and refund events. Test the sandbox first.
 3. Place a COD order: confirmation email arrives (proves `waitUntil` works).
 4. Sandbox online payment: order becomes Paid and Processing, one confirmation email.
 5. Call the cron route with and without the secret: 200 and 401.
+
+## 8. Adding images by hand to the Blob store (bulk), then linking them in the admin
+
+1. Vercel dashboard > Storage > the **public** Blob store > upload files into these folders (lowercase, no spaces). The folder or file name is the item's **slug**:
+
+```
+uploads/products/<product-slug>/01.webp, 02.webp ...   the first file in name order is the cover
+uploads/categories/<category-slug>.webp
+uploads/collections/<collection-slug>.webp             also set as the collection banner
+uploads/banners/<any-name>.webp                        library only
+```
+
+   Shrink images first (about 2000 px wide, WebP, 200 to 500 KB). If the dashboard has no folder option, type the path in the file name, e.g. `products/velvet-jacket-maroon/01.webp` under `uploads/`.
+2. Admin > Media > **Import from Blob**. Each file is checked by its real type, added to the library (folder Product Images, Category Images, Collection Images or Banner Images) and linked to the product, category or collection with the same slug.
+3. The report lists what was not linked (no item with that slug, or a category/collection that already has an image, which is left unchanged) and what could not be imported (not an image, over 25 MB).
+4. It is safe to run again whenever new files are added. A product created after its images were uploaded gets them on the next import.
+5. Files outside these four folders (the ones the admin uploads itself, customer return photos) are never touched.
+6. Tests: `npm test` (path rules) and `npm run test:db` (import with a fake Blob store, needs the local database).

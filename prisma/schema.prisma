@@ -1,8 +1,9 @@
 datasource db {
   provider = "postgresql"
-  // On Vercel use the pooled connection address here. Migrations need the direct (non-pooled) address: run them with
-  // DATABASE_URL set to that address (see docs/DEPLOY_VERCEL.md).
-  url      = env("DATABASE_URL")
+  // The variable is named APP_DATABASE_URL because that is the name the Prisma Postgres integration gives it on Vercel.
+  // Migrations need a direct (non-pooled) address if the host uses a pooler: run them with APP_DATABASE_URL set to it
+  // (see DEPLOY_VERCEL.md).
+  url      = env("APP_DATABASE_URL")
 }
 
 generator client {

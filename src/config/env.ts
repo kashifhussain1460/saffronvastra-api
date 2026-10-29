@@ -6,7 +6,7 @@ dotenv.config();
 const envSchema = z.object({
   PORT: z.string().default("4000").transform((val) => parseInt(val, 10)),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  APP_DATABASE_URL: z.string().min(1, "APP_DATABASE_URL is required"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   COOKIE_SECRET: z.string().optional(),
   // Which proxies may set X-Forwarded-For (Express "trust proxy"). The storefront proxies the API from the same host.
