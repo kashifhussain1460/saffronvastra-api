@@ -42,12 +42,14 @@ export async function getCategories(includeDrafts = false) {
     id: c.id,
     name: c.name,
     slug: c.slug,
+    parentId: c.parentId,
     shortDescription: c.shortDescription,
     image: c.image,
     bannerImage: c.bannerImage,
     sortOrder: c.sortOrder,
     status: c.status,
     productsCount: c._count.products,
+    childrenCount: c._count.children,
     ...(includeDrafts
       ? { parentId: c.parentId, detailedDescription: c.detailedDescription, childrenCount: c._count.children }
       : {}),
@@ -118,7 +120,7 @@ export async function getCollectionBySlug(slug: string, options: { includeUnpubl
             include: {
               images: { orderBy: { sortOrder: "asc" } },
               variants: { where: { status: "Active" } },
-              category: true,
+              category: { include: { parent: true } },
             },
           },
         },
@@ -166,7 +168,19 @@ export async function getProducts(params: ProductFilterParams) {
   if (params.newArrival) where.isNewArrival = true;
 
   if (params.categorySlug && params.categorySlug !== "all") {
-    where.category = { slug: params.categorySlug };
+    where.category = {
+      ...(params.status === "Active" ? { status: "Active" } : {}),
+      OR: [
+        { slug: params.categorySlug },
+        { parent: { slug: params.categorySlug } },
+      ],
+    };
+  } else if (params.status === "Active") {
+    where.NOT = {
+      category: {
+        status: { not: "Active" },
+      },
+    };
   }
 
   if (params.collectionSlug && params.collectionSlug !== "all") {
@@ -212,7 +226,7 @@ export async function getProducts(params: ProductFilterParams) {
       take: limit,
       orderBy,
       include: {
-        category: true,
+        category: { include: { parent: true } },
         images: { orderBy: { sortOrder: "asc" } },
         variants: { where: { status: "Active" } },
       },
@@ -238,7 +252,7 @@ export async function getProductsByIds(ids: string[]) {
   const rows = await prisma.product.findMany({
     where: { id: { in: unique }, status: "Active", deletedAt: null },
     include: {
-      category: true,
+      category: { include: { parent: true } },
       images: { orderBy: { sortOrder: "asc" } },
       variants: { where: { status: "Active" } },
     },
@@ -252,7 +266,7 @@ export async function getProductBySlug(slug: string, options: { includeUnpublish
   const product = await prisma.product.findUnique({
     where: { slug },
     include: {
-      category: true,
+      category: { include: { parent: true } },
       images: { orderBy: { sortOrder: "asc" } },
       variants: { where: { status: "Active" } },
       collections: {
@@ -301,7 +315,7 @@ export async function getProductBySlug(slug: string, options: { includeUnpublish
 // Category and collection input validation (server-side source of truth)
 // ---------------------------------------------------------------------------
 
-const CATALOGUE_STATUSES = ["Active", "Draft", "Archived"];
+const CATALOGUE_STATUSES = ["Active", "Inactive", "Draft", "Archived"];
 
 function slugFromText(text: string) {
   return text
@@ -349,7 +363,7 @@ function validSortOrder(value: unknown) {
 
 function validCatalogueStatus(value: unknown) {
   const status = value ?? "Active";
-  if (typeof status !== "string" || !CATALOGUE_STATUSES.includes(status)) throw httpError(400, "Status must be Active, Draft or Archived");
+  if (typeof status !== "string" || !CATALOGUE_STATUSES.includes(status)) throw httpError(400, "Status must be Active, Inactive, Draft or Archived");
   return status;
 }
 
@@ -574,7 +588,7 @@ function normalizeProductFields(data: any): NormalizedProduct {
 
 function normalizeKeywords(value: unknown): string[] {
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value) || value.length > 10) throw httpError(400, "Focus keywords must be a list of at most 10 words or phrases");
+  if (!Array.isArray(value) || value.length > 100) throw httpError(400, "Focus keywords must be a list of at most 100 words or phrases");
   const cleaned = value.map((k) => (typeof k === "string" ? k.trim() : ""));
   if (cleaned.some((k) => !k || k.length > 50)) throw httpError(400, "Each focus keyword must be 1 to 50 characters");
   return Array.from(new Set(cleaned));
@@ -650,7 +664,7 @@ function variantSku(productId: string, index: number, size: string) {
 }
 
 const PRODUCT_INCLUDE = {
-  category: true,
+  category: { include: { parent: true } },
   images: { orderBy: { sortOrder: "asc" as const } },
   variants: true,
   collections: { select: { collectionId: true } },

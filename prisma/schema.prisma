@@ -179,7 +179,7 @@ model Category {
 
 model Product {
   id                String    @id @default(uuid())
-  categoryId        String
+  categoryId        String?
   slug              String    @unique
   title             String
   description       String
@@ -209,7 +209,7 @@ model Product {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  category      Category            @relation(fields: [categoryId], references: [id])
+  category      Category?           @relation(fields: [categoryId], references: [id])
   variants      ProductVariant[]
   images        ProductImage[]
   collections   CollectionProduct[]

@@ -12,6 +12,11 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed": "tsx src/database/seed.ts",
+    "seed:admin": "tsx src/database/admin.seeder.ts",
+    "seed:categories": "tsx src/database/category.seeder.ts",
+    "activate:suzani": "tsx src/database/apply_suzani_activation.ts --apply",
+    "activate:suzani:dry": "tsx src/database/apply_suzani_activation.ts",
+    "db:clean:non-users": "tsx src/database/cleanup-non-users.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "prisma:deploy": "prisma migrate deploy",
     "postinstall": "prisma generate",
@@ -39,11 +44,14 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^22.13.1",
     "@types/nodemailer": "^6.4.17",
-    "prisma": "^6.3.1",
+    "prisma": "^6.19.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   },
   "engines": {
     "node": "22.x"
+  },
+  "prisma": {
+    "seed": "tsx src/database/seed.ts"
   }
 }

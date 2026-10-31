@@ -1,5 +1,7 @@
 import { prisma } from "./prisma.js";
 import { hashPassword } from "../common/crypto.utils.js";
+import { seedCategories } from "./category.seeder.js";
+import { seedAdminUsers } from "./admin.seeder.js";
 
 export async function runSeed() {
   console.log("===================================================================");
@@ -27,31 +29,9 @@ export async function runSeed() {
 
   console.log("✓ Roles seeded: ADMIN, CUSTOMER, ATELIER_STAFF");
 
-  // 2. Admin User
-  const adminPasswordHash = await hashPassword("SaffronAdmin2026!");
-  const adminUser = await prisma.user.upsert({
-    where: { email: "admin@saffronthreads.com" },
-    update: { passwordHash: adminPasswordHash },
-    create: {
-      email: "admin@saffronthreads.com",
-      passwordHash: adminPasswordHash,
-      emailVerifiedAt: new Date(),
-      status: "ACTIVE",
-      profile: {
-        create: {
-          displayName: "Master Artisan Concierge",
-          phone: "+91 98765 43210",
-          tier: "Atelier VIP",
-        },
-      },
-      userRoles: {
-        create: [
-          { roleId: adminRole.id },
-          { roleId: customerRole.id },
-        ],
-      },
-    },
-  });
+  // 2. Admin Users (Saffron Vastra & Saffron Threads)
+  const adminSeedResult = await seedAdminUsers(prisma);
+  const adminUser = adminSeedResult.admins[0];
 
   // 3. Demo Customer User
   const customerPasswordHash = await hashPassword("RoyalAtelier2026!");
@@ -166,6 +146,9 @@ export async function runSeed() {
     categoryMap.set(cat.slug, record.id);
   }
   console.log(`✓ Categories seeded: ${categoryDefs.length} categories`);
+
+  // 4b. Saffron Vastra Categories & Subcategories
+  await seedCategories(prisma);
 
   // 5. Collections
   const collectionDefs = [

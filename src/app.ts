@@ -35,6 +35,7 @@ import { adminAuditRouter } from "./modules/audit/audit.router.js";
 import { adminRequestsRouter, orderRequestsRouter, requestEvidenceRouter } from "./modules/requests/requests.router.js";
 import { cronRouter } from "./modules/internal/cron.router.js";
 import { adminPaymentsRouter, cashfreeWebhookHandler, orderPaymentsRouter, webhookRateLimiter } from "./modules/payments/payments.router.js";
+import { etsyImportRouter } from "./modules/etsy-import/etsy-import.router.js";
 
 export const app = express();
 // Vercel looks for the app in src/app.ts first and needs it as the default export.
@@ -226,6 +227,7 @@ apiV1Router.use("/admin/orders", auditAdminMutations("Order"), adminPaymentsRout
 apiV1Router.use("/admin/requests", auditAdminMutations("OrderRequest"), adminRequestsRouter);
 apiV1Router.use("/admin/orders", adminOrdersRouter);
 apiV1Router.use("/admin/customers", auditAdminMutations("Customer"), adminCustomerRouter);
+apiV1Router.use("/admin/products/etsy-import", etsyImportRouter);
 apiV1Router.use("/admin", adminCatalogueRouter); // /admin/categories, /admin/products, /admin/collections
 apiV1Router.use("/admin/media", auditAdminMutations("Media"), mediaRouter); // /admin/media
 
