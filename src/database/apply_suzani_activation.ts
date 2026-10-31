@@ -148,41 +148,43 @@ export async function executeActivation(apply = false) {
     throw new Error("Target categories 'suzani-jackets' or 'suzani-kimonos' not found in database!");
   }
 
-  await prisma.$transaction(async (tx) => {
-    // 1. Update Active Categories
-    for (const slug of summary.categoriesToActivate) {
-      await tx.category.update({
-        where: { slug },
+  await prisma.$transaction(
+    async (tx) => {
+      // 1. Update Active Categories (Single batch update)
+      const activeRes = await tx.category.updateMany({
+        where: { slug: { in: summary.categoriesToActivate } },
         data: { status: "Active" },
       });
-      console.log(`✓ Set status = Active: ${slug}`);
-    }
+      console.log(`✓ Set status = Active for ${activeRes.count} categories (${summary.categoriesToActivate.join(", ")})`);
 
-    // 2. Update Inactive Categories
-    for (const slug of summary.categoriesToDeactivate) {
-      await tx.category.update({
-        where: { slug },
+      // 2. Update Inactive Categories (Single batch update)
+      const inactiveRes = await tx.category.updateMany({
+        where: { slug: { in: summary.categoriesToDeactivate } },
         data: { status: "Inactive" },
       });
-      console.log(`✓ Set status = Inactive: ${slug}`);
+      console.log(`✓ Set status = Inactive for ${inactiveRes.count} categories`);
+
+      // 3. Assign Suzani Jacket products
+      const jacketIds = summary.productsToSuzaniJackets.map((p) => p.id);
+      const jacketUpdate = await tx.product.updateMany({
+        where: { id: { in: jacketIds } },
+        data: { categoryId: suzaniJacketsCat.id },
+      });
+      console.log(`✓ Assigned ${jacketUpdate.count} products to Suzani Jackets (ID: ${suzaniJacketsCat.id})`);
+
+      // 4. Assign Suzani Kimono products
+      const kimonoIds = summary.productsToSuzaniKimonos.map((p) => p.id);
+      const kimonoUpdate = await tx.product.updateMany({
+        where: { id: { in: kimonoIds } },
+        data: { categoryId: suzaniKimonosCat.id },
+      });
+      console.log(`✓ Assigned ${kimonoUpdate.count} products to Suzani Kimonos (ID: ${suzaniKimonosCat.id})`);
+    },
+    {
+      maxWait: 20000, // 20 seconds to acquire connection from pool
+      timeout: 60000, // 60 seconds execution timeout for remote cloud DB latency
     }
-
-    // 3. Assign 51 Suzani Jacket products
-    const jacketIds = summary.productsToSuzaniJackets.map((p) => p.id);
-    const jacketUpdate = await tx.product.updateMany({
-      where: { id: { in: jacketIds } },
-      data: { categoryId: suzaniJacketsCat.id },
-    });
-    console.log(`✓ Assigned ${jacketUpdate.count} products to Suzani Jackets (ID: ${suzaniJacketsCat.id})`);
-
-    // 4. Assign 7 Suzani Kimono products
-    const kimonoIds = summary.productsToSuzaniKimonos.map((p) => p.id);
-    const kimonoUpdate = await tx.product.updateMany({
-      where: { id: { in: kimonoIds } },
-      data: { categoryId: suzaniKimonosCat.id },
-    });
-    console.log(`✓ Assigned ${kimonoUpdate.count} products to Suzani Kimonos (ID: ${suzaniKimonosCat.id})`);
-  });
+  );
 
   console.log("\n===================================================================");
   console.log("  TRANSACTION COMMITTED SUCCESSFULLY");
