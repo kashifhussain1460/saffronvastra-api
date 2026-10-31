@@ -237,7 +237,7 @@ export function orderConfirmationEmail(d: OrderEmailData): RenderedEmail {
       preheader: `Thank you, ${name}. Order ${d.orderNumber} is with our artisans.`,
       body:
         heading(`Thank you, ${escapeHtml(name)}`) +
-        paragraph(`We have received your order and sent it to our atelier in Jaipur. Each piece is made to order, so we will write to you again when it is ready and when it ships.`) +
+        paragraph(`We have received your order and sent it to our workshop in Jaipur. Each piece is made to order, so we will write to you again when it is ready and when it ships.`) +
         keyValueRows([
           ["Order number", `<strong>${escapeHtml(d.orderNumber)}</strong>`],
           ["Placed on", escapeHtml(formatDate(d.createdAt))],
@@ -253,7 +253,7 @@ export function orderConfirmationEmail(d: OrderEmailData): RenderedEmail {
     }),
     text: textLayout([
       `Thank you, ${name}.`,
-      `We have received your order ${d.orderNumber} (${formatDate(d.createdAt)}) and sent it to our atelier in Jaipur.`,
+      `We have received your order ${d.orderNumber} (${formatDate(d.createdAt)}) and sent it to our workshop in Jaipur.`,
       "",
       ...d.items.map((l) => `- ${l.title} (${l.detail}) x${l.quantity}: ${rupees(l.totalMinor)}`),
       d.paymentProvider === "CASHFREE" ? `Total paid: ${rupees(d.totalMinor)}` : `Total to pay on delivery: ${rupees(d.totalMinor)}`,
@@ -272,7 +272,7 @@ export function orderReadyEmail(d: OrderEmailData): RenderedEmail {
       preheader: `Order ${d.orderNumber} has passed our final inspection.`,
       body:
         heading("Your piece is ready") +
-        paragraph(`Hello ${escapeHtml(name)}, order <strong>${escapeHtml(d.orderNumber)}</strong> has passed our final inspection and is being packed. We will send you the tracking details as soon as it leaves the atelier.`) +
+        paragraph(`Hello ${escapeHtml(name)}, order <strong>${escapeHtml(d.orderNumber)}</strong> has passed our final inspection and is being packed. We will send you the tracking details as soon as it ships.`) +
         itemsTable(d.items) +
         orderLink(d),
     }),
@@ -294,7 +294,7 @@ export function orderShippedEmail(d: OrderEmailData): RenderedEmail {
       preheader: `Order ${d.orderNumber} has been handed to ${d.carrier || "the courier"}.`,
       body:
         heading("Your order is on its way") +
-        paragraph(`Hello ${escapeHtml(name)}, order <strong>${escapeHtml(d.orderNumber)}</strong> has left our atelier.`) +
+        paragraph(`Hello ${escapeHtml(name)}, order <strong>${escapeHtml(d.orderNumber)}</strong> has been shipped from our workshop.`) +
         keyValueRows([
           ["Courier", escapeHtml(d.carrier || "")],
           ["Tracking number", `<strong>${escapeHtml(d.trackingNumber || "")}</strong>`],
@@ -308,7 +308,7 @@ export function orderShippedEmail(d: OrderEmailData): RenderedEmail {
     }),
     text: textLayout([
       `Hello ${name},`,
-      `Order ${d.orderNumber} has left our atelier.`,
+      `Order ${d.orderNumber} has been shipped from our workshop.`,
       `Courier: ${d.carrier || ""}`,
       `Tracking number: ${d.trackingNumber || ""}`,
       ...(eta ? [`Expected delivery: ${eta}`] : []),
@@ -429,7 +429,7 @@ export function contactReceivedEmail(d: { name: string; subject?: string | null;
       preheader: `Thank you for writing to ${BRAND_IDENTITY.name}. We will reply by email.`,
       body:
         heading(`Thank you, ${escapeHtml(name)}`) +
-        paragraph("We received your message and our concierge will reply to you by email.") +
+        paragraph("We received your message and our customer support team will reply to you by email.") +
         keyValueRows([
           ...(d.subject ? ([["Topic", escapeHtml(d.subject)]] as Array<[string, string]>) : []),
           ...(d.orderNumber ? ([["Order", escapeHtml(d.orderNumber)]] as Array<[string, string]>) : []),
