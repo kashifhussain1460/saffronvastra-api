@@ -49,7 +49,21 @@ const envSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   VERCEL: z.string().optional(), // set to "1" by Vercel itself
+
+  // Delivery charges toggle (test mode for live 2-rupee transactions or promotional zero-shipping).
+  // When ENABLE_DELIVERY_CHARGES=false or DELIVERY_CHARGES_ENABLED=false or DISABLE_DELIVERY_CHARGES=true,
+  // delivery charges are completely disabled (0 rupees) and hidden across quote, checkout and payment.
+  ENABLE_DELIVERY_CHARGES: z.string().optional(),
+  DELIVERY_CHARGES_ENABLED: z.string().optional(),
+  DISABLE_DELIVERY_CHARGES: z.string().optional(),
 });
+
+export function isDeliveryChargesEnabled(): boolean {
+  if (process.env.DISABLE_DELIVERY_CHARGES === "true" || process.env.DISABLE_DELIVERY_CHARGES === "1") return false;
+  if (process.env.ENABLE_DELIVERY_CHARGES === "false" || process.env.ENABLE_DELIVERY_CHARGES === "0") return false;
+  if (process.env.DELIVERY_CHARGES_ENABLED === "false" || process.env.DELIVERY_CHARGES_ENABLED === "0") return false;
+  return true;
+}
 
 const parsed = envSchema.parse(process.env);
 
@@ -67,6 +81,7 @@ if (parsed.NODE_ENV === "production" && !parsed.COOKIE_SECRET) {
 
 export const env = {
   ...parsed,
+  DELIVERY_CHARGES_ENABLED: isDeliveryChargesEnabled(),
   ON_VERCEL: Boolean(parsed.VERCEL),
   COOKIE_SECRET: parsed.COOKIE_SECRET || "development-only-cookie-secret-not-for-production",
 };

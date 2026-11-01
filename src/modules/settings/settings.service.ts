@@ -1,4 +1,5 @@
 import { BRAND_IDENTITY } from "../../config/brand.js";
+import { isDeliveryChargesEnabled } from "../../config/env.js";
 import { z } from "zod";
 import { prisma } from "../../database/prisma.js";
 
@@ -71,7 +72,7 @@ export const DEFAULT_SETTINGS = {
     address: "125, Abdul Hameed Nagar, Panch Batti, M.I. Road, Jaipur, Rajasthan 302001, India",
   },
   announcement: { enabled: true, text: "Complimentary shipping across India on orders above ₹5,000", link: "" },
-  shipping: { freeShippingThreshold: 5000, flatFee: 499 },
+  shipping: { freeShippingThreshold: 5000, flatFee: 499, deliveryChargesEnabled: true },
   cod: { enabled: true, fee: 0 },
   notifications: { adminEmail: "" },
 };
@@ -94,6 +95,16 @@ export async function getAllSettings(): Promise<{
     values[key] = { ...DEFAULT_SETTINGS[key], ...stored };
     meta[key] = row ? { updatedAt: row.updatedAt, updatedByUserId: row.updatedByUserId } : null;
   }
+  const deliveryChargesEnabled = isDeliveryChargesEnabled();
+  if (values.shipping) {
+    if (!deliveryChargesEnabled) {
+      values.shipping.deliveryChargesEnabled = false;
+      values.shipping.flatFee = 0;
+      values.shipping.freeShippingThreshold = 0;
+    } else {
+      values.shipping.deliveryChargesEnabled = true;
+    }
+  }
   return { values, meta };
 }
 
@@ -102,7 +113,11 @@ export async function getSettings(): Promise<AllSettings> {
     return (await getAllSettings()).values;
   } catch (error) {
     console.error("[settings] could not read settings, using defaults", error);
-    return DEFAULT_SETTINGS;
+    const defaults = { ...DEFAULT_SETTINGS };
+    if (!isDeliveryChargesEnabled()) {
+      defaults.shipping = { ...defaults.shipping, flatFee: 0, freeShippingThreshold: 0, deliveryChargesEnabled: false };
+    }
+    return defaults;
   }
 }
 

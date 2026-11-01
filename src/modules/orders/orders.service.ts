@@ -4,6 +4,7 @@ import { prisma } from "../../database/prisma.js";
 import { generateUUID, hashToken } from "../../common/crypto.utils.js";
 import { couponError, evaluateCoupon } from "../coupons/coupons.service.js";
 import { getSettings, toMinor } from "../settings/settings.service.js";
+import { isDeliveryChargesEnabled } from "../../config/env.js";
 import { CartOwner, getActiveCart } from "../cart/cart.service.js";
 import { cashfreeConfigured } from "../payments/cashfree.client.js";
 import { closeOnlinePayments } from "../payments/payments.service.js";
@@ -139,10 +140,13 @@ export async function calculateQuote(params: QuoteParams) {
 
   // Shipping rules come from the store settings (defaults: free from ₹5,000, otherwise ₹499).
   const settings = await getSettings();
+  const deliveryChargesActive = isDeliveryChargesEnabled() && (settings.shipping as any).deliveryChargesEnabled !== false;
   const freeShippingThresholdMinor = toMinor(settings.shipping.freeShippingThreshold);
-  const flatFeeMinor = toMinor(settings.shipping.flatFee);
+  const flatFeeMinor = deliveryChargesActive ? toMinor(settings.shipping.flatFee) : 0;
   let shippingMinor = 0;
-  if (params.shippingMethod === "express") {
+  if (!deliveryChargesActive) {
+    shippingMinor = 0;
+  } else if (params.shippingMethod === "express") {
     shippingMinor = flatFeeMinor;
   } else if (subtotalMinor >= freeShippingThresholdMinor || subtotalMinor === 0) {
     shippingMinor = 0;
@@ -161,6 +165,7 @@ export async function calculateQuote(params: QuoteParams) {
     subtotalMinor,
     discountMinor,
     shippingMinor,
+    deliveryChargesEnabled: deliveryChargesActive,
     codFeeMinor,
     codEnabled: settings.cod.enabled,
     onlineEnabled: cashfreeConfigured(),
