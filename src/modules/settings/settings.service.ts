@@ -65,12 +65,12 @@ export const GROUP_KEYS = Object.keys(SETTING_GROUPS) as SettingGroup[];
 
 export const DEFAULT_SETTINGS = {
   store: {
-    name: `${BRAND_IDENTITY.name}`,
-    supportEmail: `concierge@${BRAND_IDENTITY.domain}`,
-    supportPhone: "+91 (0141) 287-4390",
-    address: "14 Heritage Haveli Marg, C-Scheme, Jaipur, Rajasthan 302001, India",
+    name: "Saffron Vastra",
+    supportEmail: "support@saffronvastra.com",
+    supportPhone: "+91 82093 43979",
+    address: "125, Abdul Hameed Nagar, Panch Batti, M.I. Road, Jaipur, Rajasthan 302001, India",
   },
-  announcement: { enabled: true, text: "Complimentary shipping on orders above ₹5,000", link: "" },
+  announcement: { enabled: true, text: "Complimentary shipping across India on orders above ₹5,000", link: "" },
   shipping: { freeShippingThreshold: 5000, flatFee: 499 },
   cod: { enabled: true, fee: 0 },
   notifications: { adminEmail: "" },
