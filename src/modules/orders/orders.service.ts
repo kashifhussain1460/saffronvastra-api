@@ -127,7 +127,7 @@ export async function calculateQuote(params: QuoteParams) {
     const cleanCode = params.couponCode.trim().toUpperCase();
     const coupon = await prisma.coupon.findUnique({ where: { code: cleanCode } });
     // Throws a 400 with a plain message when the code cannot be used on this order.
-    discountMinor = evaluateCoupon(coupon, subtotalMinor);
+    discountMinor = evaluateCoupon(coupon, subtotalMinor, { items, owner: params.owner });
     appliedCoupon = {
       code: coupon!.code,
       type: coupon!.type,
@@ -312,27 +312,27 @@ export async function placeOrder(
         },
       });
 
-      // 5.2 Create Order Items (Immutable Snapshots)
-      const createdItems = [];
-      for (const item of items) {
-        const oi = await tx.orderItem.create({
-          data: {
-            orderId: order.id,
-            productVariantId: item.variant.id,
-            productTitle: item.product.title,
-            productSlug: item.product.slug,
-            productImage: item.coverImage,
-            sku: item.variant.sku,
-            size: item.variant.size,
-            colour: item.variant.colourName,
-            quantity: item.quantity,
-            unitPriceMinor: item.unitPriceMinor,
-            taxMinor: 0,
-            lineTotalMinor: item.lineTotalMinor,
-          },
-        });
-        createdItems.push(oi);
-      }
+      // 5.2 Create Order Items (Immutable Snapshots) concurrently
+      const createdItems = await Promise.all(
+        items.map((item) =>
+          tx.orderItem.create({
+            data: {
+              orderId: order.id,
+              productVariantId: item.variant.id,
+              productTitle: item.product.title,
+              productSlug: item.product.slug,
+              productImage: item.coverImage,
+              sku: item.variant.sku,
+              size: item.variant.size,
+              colour: item.variant.colourName,
+              quantity: item.quantity,
+              unitPriceMinor: item.unitPriceMinor,
+              taxMinor: 0,
+              lineTotalMinor: item.lineTotalMinor,
+            },
+          })
+        )
+      );
 
       // 5.3 Create Payment
       const payment = await tx.payment.create({
@@ -364,7 +364,7 @@ export async function placeOrder(
       if (quote.coupon) {
         const liveCoupon = await tx.coupon.findUnique({ where: { code: quote.coupon.code } });
         // Checked again inside the transaction so two orders cannot both take the last use.
-        evaluateCoupon(liveCoupon, subtotalMinor);
+        evaluateCoupon(liveCoupon, subtotalMinor, { items, owner });
         const claimed = await tx.coupon.updateMany({
           where: {
             code: quote.coupon.code,
@@ -383,50 +383,7 @@ export async function placeOrder(
         });
       }
 
-      // 5.6b Attribute conversion to active tracking session
-      try {
-        const sessionFilter = owner.userId
-          ? { userId: owner.userId }
-          : owner.guestProfileId
-          ? { guestProfileId: owner.guestProfileId }
-          : null;
-
-        if (sessionFilter) {
-          const activeSession = await tx.trackingSession.findFirst({
-            where: sessionFilter,
-            orderBy: { lastSeenAt: "desc" },
-          });
-
-          if (activeSession) {
-            const summary = await tx.sessionSummary.findFirst({
-              where: { trackingSessionId: activeSession.id },
-              orderBy: { createdAt: "desc" },
-            });
-            if (summary) {
-              await tx.sessionSummary.update({
-                where: { id: summary.id },
-                data: { convertedOrderId: order.id },
-              });
-            } else {
-              await tx.sessionSummary.create({
-                data: {
-                  trackingSessionId: activeSession.id,
-                  windowStart: activeSession.startedAt || new Date(),
-                  windowEnd: new Date(),
-                  convertedOrderId: order.id,
-                  pageViews: 0,
-                  uniqueProducts: 0,
-                  activeSeconds: 0,
-                  cartActions: 1,
-                },
-              });
-            }
-          }
-        }
-      } catch (analyticsErr) {
-        // Non-blocking for checkout transaction
-        console.warn("[CHECKOUT_ANALYTICS_ATTRIBUTION_WARN]", analyticsErr);
-      }
+      // 5.6b Attribution moved outside transaction to eliminate DB roundtrips
 
       // 5.7 Construct complete order and response payload
       const stepper = buildOrderStepper(initialOrderStatus, [initialStatus]);
@@ -497,7 +454,45 @@ export async function placeOrder(
       }
 
       return { order: completeOrder, payment, responsePayload };
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
+
+    // Attribute conversion asynchronously outside transaction
+    void (async () => {
+      try {
+        const sessionFilter = owner.userId
+          ? { userId: owner.userId }
+          : owner.guestProfileId
+          ? { guestProfileId: owner.guestProfileId }
+          : null;
+        if (sessionFilter) {
+          const activeSession = await prisma.trackingSession.findFirst({ where: sessionFilter, orderBy: { lastSeenAt: "desc" } });
+          if (activeSession) {
+            const summary = await prisma.sessionSummary.findFirst({ where: { trackingSessionId: activeSession.id }, orderBy: { createdAt: "desc" } });
+            if (summary) {
+              await prisma.sessionSummary.update({ where: { id: summary.id }, data: { convertedOrderId: result.order.id } });
+            } else {
+              await prisma.sessionSummary.create({
+                data: {
+                  trackingSessionId: activeSession.id,
+                  windowStart: activeSession.startedAt || new Date(),
+                  windowEnd: new Date(),
+                  convertedOrderId: result.order.id,
+                  pageViews: 0,
+                  uniqueProducts: 0,
+                  activeSeconds: 0,
+                  cartActions: 1,
+                },
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[CHECKOUT_ANALYTICS_ATTRIBUTION_WARN]", err);
+      }
+    })();
 
     // Cash on Delivery orders are confirmed now. Online orders are confirmed (and these messages sent) when the payment arrives.
     if (!isOnline) {

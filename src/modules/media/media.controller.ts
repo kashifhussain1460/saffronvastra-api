@@ -82,15 +82,18 @@ export async function handleDeleteMedia(req: Request, res: Response) {
 
 // Trust the file's own bytes, not the declared Content-Type or the file name.
 async function inspectUpload(file: Express.Multer.File): Promise<{ detected: { mime: string; width: number | null; height: number | null } } | { error: string }> {
-  const head = Buffer.alloc(64);
+  const head = Buffer.alloc(256);
   const fd = await fs.promises.open(file.path, "r");
   try {
-    await fd.read(head, 0, 64, 0);
+    await fd.read(head, 0, 256, 0);
   } finally {
     await fd.close();
   }
   const detected = detectImage(head);
   if (!detected) return { error: "The file is not a valid JPEG, PNG, WebP, GIF or AVIF image" };
+  if (detected.mime === "image/avif" && (file.mimetype === "image/x-avif" || file.mimetype === "application/octet-stream" || !file.mimetype)) {
+    file.mimetype = "image/avif";
+  }
   if (detected.mime !== file.mimetype) return { error: "The file content does not match its declared image type" };
   return { detected };
 }

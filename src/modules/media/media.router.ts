@@ -19,7 +19,8 @@ const storage = multer.diskStorage({
   },
   filename: (_req, file, cb) => {
     // The stored extension comes from the validated mimetype, never from the client's filename.
-    const ext = ALLOWED_IMAGE_TYPES[file.mimetype] || ".bin";
+    const isAvif = file.mimetype === "image/avif" || file.mimetype === "image/x-avif" || file.originalname.toLowerCase().endsWith(".avif");
+    const ext = ALLOWED_IMAGE_TYPES[file.mimetype] || (isAvif ? ".avif" : ".bin");
     const base = path
       .basename(file.originalname, path.extname(file.originalname))
       .replace(/[^a-zA-Z0-9_-]/g, "_")
@@ -32,7 +33,11 @@ const upload = multer({
   storage,
   limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_IMAGE_TYPES[file.mimetype]) {
+    const isAvif = file.mimetype === "image/avif" || file.mimetype === "image/x-avif" || file.originalname.toLowerCase().endsWith(".avif");
+    if (ALLOWED_IMAGE_TYPES[file.mimetype] || isAvif) {
+      if (isAvif && file.mimetype !== "image/avif") {
+        file.mimetype = "image/avif";
+      }
       cb(null, true);
     } else {
       cb(new Error("Only JPEG, PNG, WebP, GIF or AVIF images are allowed"));

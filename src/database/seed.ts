@@ -2,6 +2,7 @@ import { prisma } from "./prisma.js";
 import { hashPassword } from "../common/crypto.utils.js";
 import { seedCategories } from "./category.seeder.js";
 import { seedAdminUsers } from "./admin.seeder.js";
+import { COUPONS_SEED_DATA } from "./seed_coupons.js";
 
 export async function runSeed() {
   console.log("===================================================================");
@@ -553,44 +554,15 @@ export async function runSeed() {
   }
   console.log(`✓ Media Assets seeded: ${mediaAssetDefs.length} assets`);
 
-  // 8. Coupons (Matching Frontend Promo Codes)
-  const couponDefs = [
-    {
-      code: "SAFFRON10",
-      type: "PERCENTAGE",
-      value: 1000, // 10%
-      status: "Active",
-      maxRedemptions: 500,
-    },
-    {
-      code: "HERITAGE15",
-      type: "PERCENTAGE",
-      value: 1500, // 15%
-      status: "Active",
-      maxRedemptions: 200,
-    },
-    {
-      code: "WELCOME5",
-      type: "PERCENTAGE",
-      value: 500, // 5%
-      status: "Active",
-      maxRedemptions: 1000,
-    },
-    {
-      code: "FESTIVE",
-      type: "FIXED_AMOUNT",
-      value: 100000, // ₹1,000 in minor units (paise)
-      status: "Active",
-      maxRedemptions: 300,
-    },
-  ];
-
-  for (const c of couponDefs) {
+  // 8. Coupons (Universal, Product-Based & Member-Only)
+  for (const c of COUPONS_SEED_DATA) {
     await prisma.coupon.upsert({
       where: { code: c.code },
       update: {
         type: c.type,
         value: c.value,
+        description: c.description,
+        minSubtotalMinor: c.minSubtotalMinor,
         status: c.status,
         maxRedemptions: c.maxRedemptions,
       },
@@ -598,12 +570,14 @@ export async function runSeed() {
         code: c.code,
         type: c.type,
         value: c.value,
+        description: c.description,
+        minSubtotalMinor: c.minSubtotalMinor,
         status: c.status,
         maxRedemptions: c.maxRedemptions,
       },
     });
   }
-  console.log(`✓ Coupons seeded: ${couponDefs.length} promo coupons`);
+  console.log(`✓ Coupons seeded: ${COUPONS_SEED_DATA.length} promo coupons`);
 
   // 9. Initial Orders (Matching Admin Dashboard Mockups #ST10234, #ST10233)
   const existingOrder = await prisma.order.findUnique({

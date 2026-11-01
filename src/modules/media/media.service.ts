@@ -284,7 +284,23 @@ export function detectImage(buf: Buffer): { mime: string; width: number | null; 
   }
   if (buf.length >= 16 && buf.subarray(4, 8).toString("latin1") === "ftyp") {
     const brand = buf.subarray(8, 12).toString("latin1");
-    if (brand === "avif" || brand === "avis") return { mime: "image/avif", width: null, height: null };
+    let isAvif = brand === "avif" || brand === "avis";
+    if (!isAvif) {
+      const boxSize = Math.min(buf.readUInt32BE(0), buf.length);
+      const brands = buf.subarray(8, Math.max(16, boxSize)).toString("latin1");
+      isAvif = brands.includes("avif") || brands.includes("avis");
+    }
+    if (isAvif) {
+      const ispeIdx = buf.indexOf(Buffer.from("ispe"));
+      if (ispeIdx !== -1 && ispeIdx + 12 <= buf.length) {
+        const width = buf.readUInt32BE(ispeIdx + 8);
+        const height = buf.readUInt32BE(ispeIdx + 12);
+        if (width > 0 && width < 65536 && height > 0 && height < 65536) {
+          return { mime: "image/avif", width, height };
+        }
+      }
+      return { mime: "image/avif", width: null, height: null };
+    }
   }
   return null;
 }

@@ -726,7 +726,7 @@ export async function createProduct(data: any) {
       }
 
       return tx.product.findUnique({ where: { id: product.id }, include: PRODUCT_INCLUDE });
-    });
+    }, { maxWait: 10000, timeout: 30000 });
   } catch (error: any) {
     if (error?.code === "P2002") throw httpError(409, "A product with this slug already exists");
     throw error;
@@ -821,31 +821,37 @@ export async function updateProduct(id: string, data: any) {
         const keyOf = (size: string, colour: string) => `${size.toLowerCase()}|${colour.toLowerCase()}`;
         const wanted = new Map(variants.map((v) => [keyOf(v.size, v.colourName), v]));
         const seenKeys = new Set<string>();
+        const variantUpdates: Promise<any>[] = [];
         for (const row of current) {
           const key = keyOf(row.size, row.colourName);
           const match = wanted.get(key);
           seenKeys.add(key);
-          await tx.productVariant.update({
-            where: { id: row.id },
-            data: match
-              ? { status: "Active", colourHex: match.colourHex, priceOverrideMinor: match.priceOverrideMinor }
-              : { status: "Inactive" },
-          });
+          variantUpdates.push(
+            tx.productVariant.update({
+              where: { id: row.id },
+              data: match
+                ? { status: "Active", colourHex: match.colourHex, priceOverrideMinor: match.priceOverrideMinor }
+                : { status: "Inactive" },
+            })
+          );
         }
         let position = current.length;
+        const newVariantsData: any[] = [];
         for (const v of variants) {
           if (seenKeys.has(keyOf(v.size, v.colourName))) continue;
-          await tx.productVariant.create({
-            data: {
-              productId: id,
-              sku: variantSku(id, position++, v.size),
-              size: v.size,
-              colourName: v.colourName,
-              colourHex: v.colourHex,
-              priceOverrideMinor: v.priceOverrideMinor,
-              status: "Active",
-            },
+          newVariantsData.push({
+            productId: id,
+            sku: variantSku(id, position++, v.size),
+            size: v.size,
+            colourName: v.colourName,
+            colourHex: v.colourHex,
+            priceOverrideMinor: v.priceOverrideMinor,
+            status: "Active",
           });
+        }
+        await Promise.all(variantUpdates);
+        if (newVariantsData.length > 0) {
+          await tx.productVariant.createMany({ data: newVariantsData });
         }
       }
 
@@ -859,7 +865,7 @@ export async function updateProduct(id: string, data: any) {
       }
 
       return tx.product.findUnique({ where: { id }, include: PRODUCT_INCLUDE });
-    });
+    }, { maxWait: 10000, timeout: 30000 });
   } catch (error: any) {
     if (error?.code === "P2002") throw httpError(409, "A product with this slug already exists");
     throw error;
@@ -1001,5 +1007,5 @@ export async function reorderCategories(body: any) {
       await tx.category.update({ where: { id }, data: { sortOrder: (index + 1) * 10 } });
     }
     return tx.category.findMany({ where: { parentId }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, sortOrder: true } });
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 }

@@ -101,7 +101,7 @@ export async function startOnlinePayment(identifier: string, owner: CartOwner): 
     });
     if (order.paymentStatus === "Failed") await tx.order.update({ where: { id: order.id }, data: { paymentStatus: "Pending" } });
     return created;
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 
   const providerOrderId = attempt.providerOrderId as string;
   let session: string | undefined;
@@ -243,7 +243,7 @@ export async function applyGatewayPayment(input: GatewayPaymentInput): Promise<{
       }
       result = { outcome: "failed", orderNumber: order.orderNumber };
     }
-  });
+  }, { maxWait: 10000, timeout: 20000 });
 
   if (notify === "paid" && result.orderNumber) {
     const order = await prisma.order.findUnique({ where: { orderNumber: result.orderNumber }, select: { id: true } });
