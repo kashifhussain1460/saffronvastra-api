@@ -40,6 +40,11 @@ const envSchema = z.object({
   // Public https address of THIS api, used as the webhook (notify) url. Leave empty on a local machine: Cashfree needs
   // https there, and the order status is then confirmed by the server-side check instead.
   PUBLIC_API_URL: z.string().optional(),
+  // "true" (the default, as before): every order is also created with notify_url = PUBLIC_API_URL + the webhook path. Cashfree then
+  // delivers each event to EVERY "NOTIFY_URL" entry of the dashboard (one per webhook version) on top of the dashboard endpoint, so
+  // one event arrives several times (harmless: de-duplicated). Set "false" only after confirming in the Cashfree Logs that refund,
+  // charges and settlement events also reach the dashboard endpoint without it.
+  CASHFREE_ORDER_NOTIFY_URL: z.string().default("true").transform((val) => val === "true"),
   // Test hook for the automated tests: send Cashfree calls to a local fake instead. Ignored in production.
   CASHFREE_BASE_URL_OVERRIDE: z.string().optional(),
 

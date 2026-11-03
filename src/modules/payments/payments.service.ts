@@ -23,7 +23,9 @@ import { background } from "../../common/background.js";
 /** How long an unpaid online order is held before it is cancelled by the background check. */
 export const ONLINE_PAYMENT_HOLD_HOURS = 24;
 
-const FAILED_STATES = new Set(["FAILED", "USER_DROPPED", "CANCELLED", "VOID", "NOT_ATTEMPTED"]);
+// Cashfree's terminal "not paid" states. NOT_ATTEMPTED and PENDING are NOT here: they are transitional (the bank has not
+// answered yet) and must never be recorded as a failure.
+const FAILED_STATES = new Set(["FAILED", "USER_DROPPED", "CANCELLED", "VOID"]);
 
 export type PaymentOutcome = "paid" | "failed" | "ignored" | "duplicate" | "mismatch" | "duplicate-charge";
 
@@ -80,6 +82,10 @@ export async function startOnlinePayment(identifier: string, owner: CartOwner): 
   order = await loadOwnedOrder(order.id, owner);
   if (order.paymentStatus === "Paid") return { alreadyPaid: true, orderNumber: order.orderNumber };
 
+  // Earlier attempts that ended without payment. Their Cashfree orders stay ACTIVE for up to 30 days (a dropped or failed
+  // payment does not close the order), so once a new attempt opens they are closed: the customer must not be able to pay
+  // an old link as well and be charged twice.
+  const superseded: string[] = [];
   // Pick the open attempt, or open a new one, under the order lock so two tabs cannot open two attempts.
   const attempt = await prisma.$transaction(async (tx) => {
     await lockOrder(tx, order.id);
@@ -87,6 +93,7 @@ export async function startOnlinePayment(identifier: string, owner: CartOwner): 
     const open = [...fresh].reverse().find((p) => p.status === "PENDING");
     if (open) return open;
     const n = fresh.length + 1;
+    for (const earlier of fresh) if (earlier.status === "FAILED" && earlier.providerOrderId) superseded.push(earlier.providerOrderId);
     const created = await tx.payment.create({
       data: {
         orderId: order.id,
@@ -102,6 +109,8 @@ export async function startOnlinePayment(identifier: string, owner: CartOwner): 
     if (order.paymentStatus === "Failed") await tx.order.update({ where: { id: order.id }, data: { paymentStatus: "Pending" } });
     return created;
   }, { maxWait: 10000, timeout: 20000 });
+
+  if (superseded.length) background(terminateProviderOrders(superseded));
 
   const providerOrderId = attempt.providerOrderId as string;
   let session: string | undefined;
@@ -134,7 +143,7 @@ export async function startOnlinePayment(identifier: string, owner: CartOwner): 
         amountMinor: attempt.amountMinor,
         ...customer,
         returnUrl: `${env.APP_URL.replace(/\/$/, "")}/order-confirmation?order=${encodeURIComponent(order.orderNumber)}`,
-        notifyUrl: env.PUBLIC_API_URL?.startsWith("https://") ? `${env.PUBLIC_API_URL.replace(/\/$/, "")}/api/v1/payments/cashfree/webhook` : null,
+        notifyUrl: env.CASHFREE_ORDER_NOTIFY_URL && env.PUBLIC_API_URL?.startsWith("https://") ? `${env.PUBLIC_API_URL.replace(/\/$/, "")}/api/v1/payments/cashfree/webhook` : null,
         note: `Order ${order.orderNumber}`,
         idempotencyKey: attempt.id,
       });
@@ -279,17 +288,25 @@ async function markAttemptExpired(paymentId: string) {
   });
 }
 
+/** Closes Cashfree orders that should no longer take a payment. Best effort, never throws: Cashfree refuses to close a paid order and that is fine. */
+async function terminateProviderOrders(providerOrderIds: string[]): Promise<void> {
+  if (!cf.cashfreeConfigured()) return;
+  for (const id of providerOrderIds) await cf.terminateOrder(id).catch(() => undefined);
+}
+
 /**
  * An order was cancelled: its open payment attempts are closed so the customer cannot pay it later through an old link.
  * Best effort and never throws; a payment that still arrives is flagged for a refund (PAYMENT_AFTER_CANCELLATION).
  */
 export async function closeOnlinePayments(orderId: string): Promise<void> {
   try {
-    const open = await prisma.payment.findMany({ where: { orderId, provider: "CASHFREE", status: "PENDING" } });
-    for (const attempt of open) {
-      await prisma.payment.update({ where: { id: attempt.id }, data: { status: "EXPIRED" } });
-      if (cf.cashfreeConfigured() && attempt.providerOrderId) await cf.terminateOrder(attempt.providerOrderId).catch(() => undefined);
+    // Open attempts are expired here; attempts that ended in FAILED / USER_DROPPED still have an ACTIVE order at Cashfree,
+    // so theirs are closed as well.
+    const attempts = await prisma.payment.findMany({ where: { orderId, provider: "CASHFREE", status: { in: ["PENDING", "FAILED"] } } });
+    for (const attempt of attempts) {
+      if (attempt.status === "PENDING") await prisma.payment.update({ where: { id: attempt.id }, data: { status: "EXPIRED" } });
     }
+    await terminateProviderOrders(attempts.map((a) => a.providerOrderId).filter((id): id is string => Boolean(id)));
   } catch (error: any) {
     console.error("[payments] could not close open payment attempts:", error?.message || error);
   }
@@ -384,6 +401,10 @@ export async function processCashfreeWebhook(rawBody: string, headers: Record<st
     refundId: data?.refund?.refund_id ?? null,
     status: data?.payment?.payment_status ?? data?.refund?.refund_status ?? null,
     amount: data?.payment?.payment_amount ?? data?.refund?.refund_amount ?? null,
+    // which webhook version Cashfree used (the dashboard endpoint's version), and whether it sent its delivery id
+    version: header("x-webhook-version") ?? null,
+    attempt: header("x-webhook-attempt") ?? null,
+    hasIdempotencyKey: Boolean(header("x-idempotency-key")),
   };
 
   let record = await prisma.webhookEvent
