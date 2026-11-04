@@ -64,7 +64,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Static file serving for uploads
-app.use("/uploads", express.static(path.resolve(process.cwd(), "public/uploads")));
+app.use("/uploads", express.static(path.resolve(process.cwd(), "public/uploads"), { maxAge: "365d", immutable: true }));
 
 // Rate Limiters
 // Test and local bypasses never apply in production, where they would switch rate limiting off.
