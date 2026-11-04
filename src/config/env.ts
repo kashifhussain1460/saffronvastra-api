@@ -55,6 +55,14 @@ const envSchema = z.object({
   CRON_SECRET: z.string().optional(),
   VERCEL: z.string().optional(), // set to "1" by Vercel itself
 
+  // Meta (Instagram/Facebook) webhooks. INSTAGRAM_VERIFY_TOKEN is any string you choose, entered once into the
+  // Meta App Dashboard's "Configure webhooks" step to prove the callback URL belongs to you. META_APP_SECRET
+  // (App Dashboard > Settings > Basic > App Secret) signs every event delivery afterwards and is never sent
+  // to the browser. Without either, the webhook route safely rejects every request (verification fails,
+  // signatures never match) instead of crashing the server.
+  INSTAGRAM_VERIFY_TOKEN: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+
   // Delivery charges toggle (test mode for live 2-rupee transactions or promotional zero-shipping).
   // When ENABLE_DELIVERY_CHARGES=false or DELIVERY_CHARGES_ENABLED=false or DISABLE_DELIVERY_CHARGES=true,
   // delivery charges are completely disabled (0 rupees) and hidden across quote, checkout and payment.

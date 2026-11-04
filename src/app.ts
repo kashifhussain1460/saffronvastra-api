@@ -36,6 +36,7 @@ import { adminRequestsRouter, orderRequestsRouter, requestEvidenceRouter } from 
 import { cronRouter } from "./modules/internal/cron.router.js";
 import { adminPaymentsRouter, cashfreeWebhookHandler, orderPaymentsRouter, webhookRateLimiter } from "./modules/payments/payments.router.js";
 import { etsyImportRouter } from "./modules/etsy-import/etsy-import.router.js";
+import { metaWebhookRouter, metaWebhookRateLimiter, instagramWebhookEventHandler } from "./modules/meta/meta-webhook.router.js";
 
 export const app = express();
 // Vercel looks for the app in src/app.ts first and needs it as the default export.
@@ -60,6 +61,10 @@ app.use(
 app.use(cookieParser(env.COOKIE_SECRET));
 // Payment webhook: mounted BEFORE the JSON parser. The signature covers the exact bytes Cashfree sent.
 app.post("/api/v1/payments/cashfree/webhook", webhookRateLimiter, express.raw({ type: "*/*", limit: "1mb" }), cashfreeWebhookHandler);
+// Instagram/Facebook webhook: same reasoning — mounted before the JSON parser so the signature check sees
+// the exact bytes Meta sent. The GET verification handshake (no body) is a normal route, mounted below with
+// the rest of /api/v1.
+app.post("/api/v1/webhooks/instagram", metaWebhookRateLimiter, express.raw({ type: "*/*", limit: "1mb" }), instagramWebhookEventHandler);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -230,6 +235,7 @@ apiV1Router.use("/admin/customers", auditAdminMutations("Customer"), adminCustom
 apiV1Router.use("/admin/products/etsy-import", etsyImportRouter);
 apiV1Router.use("/admin", adminCatalogueRouter); // /admin/categories, /admin/products, /admin/collections
 apiV1Router.use("/admin/media", auditAdminMutations("Media"), mediaRouter); // /admin/media
+apiV1Router.use(metaWebhookRouter); // GET /webhooks/instagram (verification handshake only; POST is mounted above the JSON parser)
 
 // Welcome endpoint for /api/v1
 apiV1Router.get("/", (req: Request, res: Response) => {
