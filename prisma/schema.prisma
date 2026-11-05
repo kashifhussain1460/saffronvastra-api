@@ -39,6 +39,7 @@ model User {
   orderNotes         OrderNote[]
   reviews            Review[]
   trackingSessions   TrackingSession[]
+  socialCampaigns    SocialCampaign[]
 
   @@map("users")
 }
@@ -209,12 +210,13 @@ model Product {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  category      Category?           @relation(fields: [categoryId], references: [id])
-  variants      ProductVariant[]
-  images        ProductImage[]
-  collections   CollectionProduct[]
-  wishlistItems WishlistItem[]
-  reviews       Review[]
+  category               Category?               @relation(fields: [categoryId], references: [id])
+  variants               ProductVariant[]
+  images                 ProductImage[]
+  collections            CollectionProduct[]
+  wishlistItems          WishlistItem[]
+  reviews                Review[]
+  socialCampaignProducts SocialCampaignProduct[]
 
   @@index([status, categoryId])
   @@index([deletedAt])
@@ -955,4 +957,135 @@ model StoreSetting {
   updatedByUserId String?
 
   @@map("store_settings")
+}
+
+// =========================================================================
+// 8. SOCIAL PUBLISHING (6 TABLES)
+// =========================================================================
+
+model SocialAccount {
+  id                    String    @id @default(uuid())
+  platform              String // instagram | facebook | pinterest | tiktok | reddit | lookbook
+  externalAccountId     String?
+  accountName           String
+  accountType           String    @default("business")
+  integrationMode       String // direct_api | manual
+  credentialSource      String // env | oauth
+  encryptedAccessToken  String?
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  grantedScopes         String[]  @default([])
+  appReviewStatus       String    @default("pending") // pending | approved | rejected
+  connectionStatus      String    @default("connected") // connected | disconnected | expired
+  capabilities          Json?
+  apiVersion            String?
+  lastVerifiedAt        DateTime?
+  lastHealthCheckAt     DateTime?
+  lastErrorCode         String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  publishJobs SocialPublishJob[]
+
+  @@unique([platform])
+  @@map("social_accounts")
+}
+
+model SocialCampaign {
+  id              String   @id @default(uuid())
+  name            String
+  createdByUserId String?
+  status          String   @default("draft") // draft | published | failed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdByUser User?                   @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  products      SocialCampaignProduct[]
+
+  @@index([status, createdAt])
+  @@map("social_campaigns")
+}
+
+model SocialCampaignProduct {
+  id         String @id @default(uuid())
+  campaignId String
+  productId  String
+
+  campaign SocialCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  product  Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variants SocialPostVariant[]
+
+  @@unique([campaignId, productId])
+  @@map("social_campaign_products")
+}
+
+model SocialPostVariant {
+  id                String   @id @default(uuid())
+  campaignProductId String
+  platform          String
+  contentType       String // Post | Story | Reel | Pin | VideoPost | ManualHandoff
+  caption           String?
+  title             String?
+  hashtags          String[] @default([])
+  destinationUrl    String?
+  settings          Json? // board | subreddit | privacy etc.
+  mediaSnapshot     Json? // { url, mimeType, width, height } at creation time
+  validationStatus  String   @default("pending") // pending | valid | invalid
+  validationErrors  Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  campaignProduct SocialCampaignProduct @relation(fields: [campaignProductId], references: [id], onDelete: Cascade)
+  publishJob      SocialPublishJob?
+
+  @@unique([campaignProductId, platform])
+  @@map("social_post_variants")
+}
+
+model SocialPublishJob {
+  id                  String    @id @default(uuid())
+  variantId           String    @unique
+  socialAccountId     String
+  provider            String
+  idempotencyKey      String    @unique
+  enqueuedAt          DateTime  @default(now())
+  status              String    @default("pending") // pending | processing | published | failed | dead
+  attemptCount        Int       @default(0)
+  nextRetryAt         DateTime?
+  lockedAt            DateTime?
+  lockedBy            String?
+  externalPostId      String?
+  externalPostUrl     String?
+  providerContainerId String?
+  lastErrorCode       String?
+  lastErrorMessage    String?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  variant       SocialPostVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount      @relation(fields: [socialAccountId], references: [id], onDelete: Restrict)
+  logs          SocialPublishLog[]
+
+  @@index([status, enqueuedAt])
+  @@index([socialAccountId, status])
+  @@map("social_publish_jobs")
+}
+
+model SocialPublishLog {
+  id                String   @id @default(uuid())
+  jobId             String
+  eventType         String // enqueued | attempt_start | attempt_success | attempt_failure | dead_lettered | lock_recovered
+  providerRequestId String?
+  requestMeta       Json?
+  responseMeta      Json?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         DateTime @default(now())
+
+  job SocialPublishJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt(sort: Desc)])
+  @@map("social_publish_logs")
 }
