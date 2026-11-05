@@ -1,0 +1,156 @@
+import { prisma } from '../../database/prisma.js';
+import { AppError } from '../../common/errors.js';
+
+const MAX_ATTEMPTS = 5;
+const STALE_LOCK_MS = 10 * 60 * 1000;
+
+/**
+ * Claim up to `batchSize` pending/retryable jobs atomically.
+ * Uses FOR UPDATE SKIP LOCKED so concurrent workers never claim the same job.
+ * Column identifiers are camelCase (matching the Prisma-generated migration).
+ */
+export async function claimJobs(batchSize: number, lockId: string): Promise<string[]> {
+  if (!Number.isInteger(batchSize) || batchSize < 1) {
+    throw new AppError(400, 'INVALID_BATCH_SIZE', 'batchSize must be a positive integer');
+  }
+
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    UPDATE "social_publish_jobs"
+    SET "status" = 'processing', "lockedAt" = now(), "lockedBy" = ${lockId}, "updatedAt" = now()
+    WHERE "id" IN (
+      SELECT "id" FROM "social_publish_jobs"
+      WHERE "status" = 'pending'
+        AND ("nextRetryAt" IS NULL OR "nextRetryAt" <= now())
+      ORDER BY "enqueuedAt"
+      FOR UPDATE SKIP LOCKED
+      LIMIT ${batchSize}
+    )
+    RETURNING "id"
+  `;
+  return rows.map(r => r.id);
+}
+
+/** Mark a job done (provider confirmed the post). */
+export async function completeJob(
+  jobId: string,
+  result: { externalPostId: string; externalPostUrl?: string },
+): Promise<void> {
+  await prisma.$transaction([
+    prisma.socialPublishJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'published',
+        externalPostId: result.externalPostId,
+        externalPostUrl: result.externalPostUrl ?? null,
+        completedAt: new Date(),
+        lockedAt: null,
+        lockedBy: null,
+      },
+    }),
+    prisma.socialPublishLog.create({
+      data: { jobId, eventType: 'attempt_success' },
+    }),
+  ]);
+}
+
+/**
+ * Classify a failure and either schedule a retry or dead-letter the job.
+ * attemptCount is incremented inside a transaction; the backoff uses the new count.
+ */
+export async function failJob(
+  jobId: string,
+  err: { code: string; message: string; retryable: boolean },
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const job = await tx.socialPublishJob.findUnique({
+      where: { id: jobId },
+      select: { attemptCount: true },
+    });
+    if (!job) {
+      throw new AppError(404, 'JOB_NOT_FOUND', 'Publish job not found');
+    }
+
+    const attemptCount = job.attemptCount + 1;
+    const shouldRetry = err.retryable && attemptCount < MAX_ATTEMPTS;
+
+    if (shouldRetry) {
+      const delayMs = (2 ** attemptCount) * 60_000 + Math.random() * 30_000;
+      await tx.socialPublishJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'pending',
+          attemptCount,
+          nextRetryAt: new Date(Date.now() + delayMs),
+          lastErrorCode: err.code,
+          lastErrorMessage: err.message,
+          lockedAt: null,
+          lockedBy: null,
+        },
+      });
+    } else {
+      await tx.socialPublishJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'dead',
+          attemptCount,
+          nextRetryAt: null,
+          lastErrorCode: err.code,
+          lastErrorMessage: err.message,
+          lockedAt: null,
+          lockedBy: null,
+        },
+      });
+    }
+
+    await tx.socialPublishLog.create({
+      data: {
+        jobId,
+        eventType: 'attempt_failure',
+        errorCode: err.code,
+        errorMessage: err.message,
+      },
+    });
+
+    if (!shouldRetry) {
+      await tx.socialPublishLog.create({
+        data: {
+          jobId,
+          eventType: 'dead_lettered',
+          errorCode: err.code,
+          errorMessage: err.message,
+        },
+      });
+    }
+  });
+}
+
+/** Admin retry: reset a dead or failed job so it can be claimed again. */
+export async function retryJob(jobId: string): Promise<void> {
+  await prisma.socialPublishJob.update({
+    where: { id: jobId },
+    data: {
+      status: 'pending',
+      attemptCount: 0,
+      nextRetryAt: null,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+    },
+  });
+}
+
+/** Sweeper: return jobs stuck in 'processing' beyond the stale-lock window to 'pending'. */
+export async function recoverStaleLocks(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_LOCK_MS);
+  const result = await prisma.socialPublishJob.updateMany({
+    where: {
+      status: 'processing',
+      lockedAt: { lt: cutoff },
+    },
+    data: {
+      status: 'pending',
+      lockedAt: null,
+      lockedBy: null,
+    },
+  });
+  return result.count;
+}
