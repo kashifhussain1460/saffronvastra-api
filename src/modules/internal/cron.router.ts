@@ -2,6 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 import { Request, Response, Router } from "express";
 import { env } from "../../config/env.js";
 import { reconcilePendingPayments } from "../payments/payments.service.js";
+import { recoverStaleLocks } from "../social/jobs.service.js";
+import { runJobBatch } from "../social/jobs.runner.js";
 
 /**
  * Endpoints called by the scheduler (Vercel Cron). Vercel sends "Authorization: Bearer <CRON_SECRET>" on every call,
@@ -34,5 +36,21 @@ cronRouter.get("/reconcile", async (_req: Request, res: Response) => {
   } catch (error: any) {
     console.error("[cron] reconcile failed:", error?.message);
     return res.status(500).json({ status: "error", message: "Reconcile failed" });
+  }
+});
+
+// Social publishing sweeper: frees stale job locks, then runs one batch of queued publish jobs.
+cronRouter.get("/social", async (_req: Request, res: Response) => {
+  if (!env.SOCIAL_PUBLISHING_ENABLED) {
+    return res.status(404).json({ status: "error", code: "NOT_FOUND", message: "Not found" });
+  }
+  try {
+    const recovered = await recoverStaleLocks();
+    const processed = await runJobBatch(10);
+    console.log("[cron] social sweep finished", JSON.stringify({ recovered, processed }));
+    return res.status(200).json({ status: "success", data: { recovered, processed } });
+  } catch (error: any) {
+    console.error("[cron] social sweep failed:", error?.message);
+    return res.status(500).json({ status: "error", message: "Social sweep failed" });
   }
 });
