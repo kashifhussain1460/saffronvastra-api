@@ -5,6 +5,7 @@ import { decrypt } from '../../common/secretbox.js';
 import type { PublishPayload } from './providers/types.js';
 import type { ProviderAdapter } from './providers/types.js';
 import { fakeAdapter } from './providers/fake.adapter.js';
+import { instagramAdapter } from './providers/instagram.adapter.js';
 
 const ADAPTERS: Record<string, ProviderAdapter> = {};
 
@@ -12,6 +13,8 @@ const ADAPTERS: Record<string, ProviderAdapter> = {};
 if (process.env.NODE_ENV !== 'production') {
   ADAPTERS['fake'] = fakeAdapter;
 }
+
+ADAPTERS['instagram'] = instagramAdapter;
 
 /**
  * Claims up to `batchSize` pending jobs, processes each via its registered adapter,
