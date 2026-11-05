@@ -13,6 +13,9 @@ function getAccountId(): string {
 
 async function apiFetch(url: string, options: RequestInit = {}): Promise<unknown> {
   const res = await fetch(url, options);
+  if (!res.ok) {
+    throw new AppError(res.status, 'INSTAGRAM_API_ERROR', `Instagram API error: ${res.status}`);
+  }
   const body = await res.json() as unknown;
   return body;
 }
@@ -58,7 +61,7 @@ export const instagramAdapter: ProviderAdapter = {
     // --- Step 2: Poll container status ---
     let finished = false;
     for (let i = 0; i < 5; i++) {
-      await new Promise<void>((r) => setTimeout(r, 60_000));
+      if (i > 0) await new Promise<void>((r) => setTimeout(r, 60_000));
 
       const statusRes = await apiFetch(
         `${BASE}/${containerId}?fields=status_code`,
