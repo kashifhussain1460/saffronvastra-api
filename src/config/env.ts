@@ -53,6 +53,21 @@ const envSchema = z.object({
   // "Authorization: Bearer <CRON_SECRET>" on every cron call.
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
   CRON_SECRET: z.string().optional(),
+  SOCIAL_PUBLISHING_ENABLED: z.string().optional(),
+  SOCIAL_TOKEN_KEY: z.string().optional(),
+  // Instagram (existing names kept)
+  INSTAGRAM_ACCOUNT_ID: z.string().optional(),
+  INSTAGRAM_ACCESS_TOKEN: z.string().optional(),
+  INSTAGRAM_VERIFY_TOKEN: z.string().optional(),
+  // Facebook
+  FACEBOOK_APP_ID: z.string().optional(),
+  FACEBOOK_APP_SECRET: z.string().optional(),
+  // Pinterest
+  PINTEREST_APP_ID: z.string().optional(),
+  PINTEREST_APP_SECRET: z.string().optional(),
+  // TikTok
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
   VERCEL: z.string().optional(), // set to "1" by Vercel itself
 
   // Delivery charges toggle (test mode for live 2-rupee transactions or promotional zero-shipping).
@@ -84,9 +99,14 @@ if (parsed.NODE_ENV === "production" && !parsed.COOKIE_SECRET) {
   throw new Error("COOKIE_SECRET must be set when NODE_ENV is production");
 }
 
+if (parsed.SOCIAL_PUBLISHING_ENABLED === 'true' && parsed.NODE_ENV === 'production' && !parsed.SOCIAL_TOKEN_KEY) {
+  throw new Error('SOCIAL_TOKEN_KEY must be set when SOCIAL_PUBLISHING_ENABLED is true in production');
+}
+
 export const env = {
   ...parsed,
   DELIVERY_CHARGES_ENABLED: isDeliveryChargesEnabled(),
   ON_VERCEL: Boolean(parsed.VERCEL),
+  SOCIAL_PUBLISHING_ENABLED: parsed.SOCIAL_PUBLISHING_ENABLED === 'true',
   COOKIE_SECRET: parsed.COOKIE_SECRET || "development-only-cookie-secret-not-for-production",
 };
