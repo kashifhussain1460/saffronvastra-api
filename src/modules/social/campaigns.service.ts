@@ -1,4 +1,5 @@
 import crypto, { createHash } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prisma.js';
 import { AppError } from '../../common/errors.js';
 import type { PlatformKey, ContentType, AccountStatus } from './providers/types.js';
@@ -47,10 +48,11 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Create
   // 2. Dedup productIds
   const uniqueProductIds = [...new Set(input.productIds)];
 
-  // 3. Load cover images (one query)
+  // 3. Load cover images (one query); mimeType lives on MediaAsset, not ProductImage
   const coverImages = await prisma.productImage.findMany({
     where: { productId: { in: uniqueProductIds } },
     orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }],
+    include: { mediaAsset: { select: { mimeType: true } } },
   });
 
   const coverByProduct = new Map<string, { url: string; mimeType: string }>();
@@ -58,7 +60,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Create
     if (!coverByProduct.has(img.productId)) {
       coverByProduct.set(img.productId, {
         url: img.url,
-        mimeType: img.mimeType ?? 'image/jpeg',
+        mimeType: img.mediaAsset?.mimeType ?? 'image/jpeg',
       });
     }
   }
@@ -176,9 +178,9 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Create
           title: c.title ?? null,
           hashtags: c.hashtags ?? [],
           destinationUrl: c.destinationUrl ?? null,
-          settings: c.settings ?? null,
+          settings: (c.settings ?? Prisma.DbNull) as Prisma.InputJsonValue,
           // R-4: raw URL + mimeType; no JPEG conversion here
-          mediaSnapshot: cover ? { url: cover.url, mimeType: cover.mimeType } : null,
+          mediaSnapshot: cover ? { url: cover.url, mimeType: cover.mimeType } as Prisma.InputJsonValue : Prisma.DbNull,
         });
       }
     }
