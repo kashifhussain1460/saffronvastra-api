@@ -200,6 +200,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Create
             socialAccountId: decision.accountId,
             provider: decision.provider,
             idempotencyKey,
+            status: 'held',
           });
         }
       }

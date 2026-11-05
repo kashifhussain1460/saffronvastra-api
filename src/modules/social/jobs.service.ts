@@ -124,18 +124,43 @@ export async function failJob(
   });
 }
 
-/** Admin retry: reset a dead or failed job so it can be claimed again. */
-export async function retryJob(jobId: string): Promise<void> {
-  await prisma.socialPublishJob.update({
-    where: { id: jobId },
+/** Admin retry: reset a dead or failed job for the given campaign so it can be claimed again. */
+export async function retryJob(jobId: string, campaignId: string): Promise<void> {
+  const result = await prisma.socialPublishJob.updateMany({
+    where: {
+      id: jobId,
+      status: { in: ['dead', 'failed'] },
+      variant: { campaignProduct: { campaignId } },
+    },
     data: {
       status: 'pending',
       attemptCount: 0,
       nextRetryAt: null,
+      lockedAt: null,
+      lockedBy: null,
       lastErrorCode: null,
       lastErrorMessage: null,
     },
   });
+  if (result.count === 0) {
+    throw new AppError(404, 'JOB_NOT_FOUND', 'Job not found, not retryable, or does not belong to this campaign');
+  }
+}
+
+/** Release all held jobs for a campaign so claimJobs can pick them up. */
+export async function releaseHeldJobs(campaignId: string): Promise<number> {
+  const result = await prisma.socialPublishJob.updateMany({
+    where: {
+      status: 'held',
+      variant: {
+        campaignProduct: {
+          campaignId,
+        },
+      },
+    },
+    data: { status: 'pending' },
+  });
+  return result.count;
 }
 
 /** Sweeper: return jobs stuck in 'processing' beyond the stale-lock window to 'pending'. */

@@ -4,15 +4,23 @@ import { env } from '../../config/env.js';
 import { getRegistry } from './providers/registry.js';
 import { querySocialProducts } from './products.query.js';
 import { createCampaign } from './campaigns.service.js';
-import { retryJob } from './jobs.service.js';
+import { retryJob, releaseHeldJobs } from './jobs.service.js';
 import { runJobBatch } from './jobs.runner.js';
-import { listAccounts } from './accounts.service.js';
+import { listAccounts, upsertEnvAccount } from './accounts.service.js';
+import { background } from '../../common/background.js';
 import { prisma } from '../../database/prisma.js';
 import {
   createCampaignSchema,
   listProductsSchema,
   listCampaignsSchema,
 } from './social.schemas.js';
+
+// Sync env-based accounts into the DB once at startup.
+if (env.SOCIAL_PUBLISHING_ENABLED) {
+  upsertEnvAccount('instagram').catch(err =>
+    console.error('[social] Instagram account sync error:', err)
+  );
+}
 
 export const socialRouter = Router();
 
@@ -127,6 +135,7 @@ socialRouter.get('/campaigns/:id', async (req, res) => {
       include: {
         products: {
           include: {
+            product: { select: { id: true, title: true } },
             variants: { include: { publishJob: true } },
           },
         },
@@ -142,24 +151,25 @@ socialRouter.get('/campaigns/:id', async (req, res) => {
 });
 
 // POST /campaigns/:id/publish
-socialRouter.post('/campaigns/:id/publish', async (_req, res) => {
-  // Fire-and-forget: don't await; return 202 immediately
-  setImmediate(async () => {
-    try {
-      await runJobBatch(10);
-    } catch (err) {
-      console.error('[social:publish] batch error:', err);
-    }
-  });
+socialRouter.post('/campaigns/:id/publish', async (req, res) => {
+  const campaign = await prisma.socialCampaign.findUnique({ where: { id: req.params.id } });
+  if (!campaign) {
+    return res.status(404).json({ status: 'error', code: 'NOT_FOUND', message: 'Campaign not found' });
+  }
+  await releaseHeldJobs(req.params.id);
+  background(runJobBatch(10));
   return res.status(202).json({ status: 'success', message: 'Publish enqueued' });
 });
 
 // POST /campaigns/:id/jobs/:jobId/retry
 socialRouter.post('/campaigns/:id/jobs/:jobId/retry', async (req, res) => {
   try {
-    await retryJob(req.params.jobId);
+    await retryJob(req.params.jobId, req.params.id);
     return res.status(200).json({ status: 'success' });
   } catch (err: any) {
+    if (err?.code === 'JOB_NOT_FOUND') {
+      return res.status(404).json({ status: 'error', code: err.code, message: err.message });
+    }
     return res.status(500).json({ status: 'error', message: err.message });
   }
 });

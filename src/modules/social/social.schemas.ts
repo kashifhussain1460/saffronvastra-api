@@ -17,8 +17,8 @@ export const createCampaignSchema = z.object({
 });
 
 export const listProductsSchema = z.object({
-  q: z.string().optional(),
-  categoryId: z.string().uuid().optional(),
+  search: z.string().optional(),
+  categorySlug: z.string().optional(),
   uncategorised: z.coerce.boolean().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
