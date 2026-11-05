@@ -46,7 +46,7 @@ const REGISTRY: Readonly<Record<PlatformKey, PlatformMeta>> = Object.freeze({
     key: 'reddit',
     displayName: 'Reddit',
     color: '#FF4500',
-    contentTypes: Object.freeze(['Post']) as PlatformMeta['contentTypes'],
+    contentTypes: Object.freeze(['ManualHandoff']) as PlatformMeta['contentTypes'],
     jpegOnly: false,
     videoContentTypes: Object.freeze([] as ContentType[]) as PlatformMeta['videoContentTypes'],
     manual: true,
