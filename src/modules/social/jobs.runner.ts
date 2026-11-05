@@ -2,8 +2,9 @@ import crypto from 'node:crypto';
 import { prisma } from '../../database/prisma.js';
 import { claimJobs, completeJob, failJob } from './jobs.service.js';
 import { decrypt } from '../../common/secretbox.js';
-import type { PublishPayload } from './providers/types.js';
+import type { PublishPayload, PlatformKey, ContentType } from './providers/types.js';
 import type { ProviderAdapter } from './providers/types.js';
+import { prepareMediaForPlatform } from './media.service.js';
 import { fakeAdapter } from './providers/fake.adapter.js';
 import { instagramAdapter } from './providers/instagram.adapter.js';
 import { facebookAdapter } from './providers/facebook.adapter.js';
@@ -78,6 +79,23 @@ export async function runJobBatch(batchSize: number): Promise<number> {
         }
       }
 
+      // Prepare media URL (convert/re-host if needed)
+      const rawMediaUrl = (job.variant.mediaSnapshot as any)?.url ?? '';
+      let mediaUrl = rawMediaUrl;
+      if (rawMediaUrl) {
+        try {
+          const prepared = await prepareMediaForPlatform(
+            rawMediaUrl,
+            job.variant.platform as PlatformKey,
+            job.variant.contentType as ContentType,
+          );
+          mediaUrl = prepared.url;
+        } catch (err) {
+          await failJob(jobId, { code: 'MEDIA_PREPARATION_FAILED', message: err instanceof Error ? err.message : String(err), retryable: false });
+          return;
+        }
+      }
+
       // Build publish payload
       const payload: PublishPayload = {
         variantId: job.variant.id,
@@ -85,7 +103,7 @@ export async function runJobBatch(batchSize: number): Promise<number> {
         contentType: job.variant.contentType as PublishPayload['contentType'],
         caption: job.variant.caption ?? undefined,
         hashtags: job.variant.hashtags,
-        mediaUrl: (job.variant.mediaSnapshot as any)?.url ?? '',
+        mediaUrl,
         settings: (job.variant.settings as Record<string, unknown>) ?? undefined,
       };
 
