@@ -5,6 +5,7 @@ import { getRegistry } from './providers/registry.js';
 import { querySocialProducts } from './products.query.js';
 import { createCampaign } from './campaigns.service.js';
 import { retryJob } from './jobs.service.js';
+import { runJobBatch } from './jobs.runner.js';
 import { listAccounts } from './accounts.service.js';
 import { prisma } from '../../database/prisma.js';
 import {
@@ -140,8 +141,16 @@ socialRouter.get('/campaigns/:id', async (req, res) => {
   }
 });
 
-// POST /campaigns/:id/publish — stub (jobs runner wired in Task 11)
+// POST /campaigns/:id/publish
 socialRouter.post('/campaigns/:id/publish', async (_req, res) => {
+  // Fire-and-forget: don't await; return 202 immediately
+  setImmediate(async () => {
+    try {
+      await runJobBatch(10);
+    } catch (err) {
+      console.error('[social:publish] batch error:', err);
+    }
+  });
   return res.status(202).json({ status: 'success', message: 'Publish enqueued' });
 });
 
