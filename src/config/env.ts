@@ -66,9 +66,6 @@ const envSchema = z.object({
   // Pinterest
   PINTEREST_APP_ID: z.string().optional(),
   PINTEREST_APP_SECRET: z.string().optional(),
-  // TikTok
-  TIKTOK_CLIENT_KEY: z.string().optional(),
-  TIKTOK_CLIENT_SECRET: z.string().optional(),
   VERCEL: z.string().optional(), // set to "1" by Vercel itself
 
   // Delivery charges toggle (test mode for live 2-rupee transactions or promotional zero-shipping).

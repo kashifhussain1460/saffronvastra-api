@@ -4,7 +4,7 @@ import { checkEligibility } from './eligibility.service.js';
 
 describe('checkEligibility', () => {
   it('manual platform is never eligible', () => {
-    const r = checkEligibility({ platform: 'reddit', contentType: 'ManualHandoff', accountStatus: 'manual_required', hasVideo: false });
+    const r = checkEligibility({ platform: 'lookbook', contentType: 'ManualHandoff', accountStatus: 'manual_required', hasVideo: false });
     assert.strictEqual(r.eligible, false);
     assert.strictEqual(r.code, 'MANUAL_ONLY');
   });

@@ -4,7 +4,7 @@ export const createCampaignSchema = z.object({
   name: z.string().min(1).max(200),
   productIds: z.array(z.string().uuid()).min(1).max(200),
   platforms: z.array(z.object({
-    platform: z.enum(['instagram', 'facebook', 'pinterest', 'tiktok', 'reddit', 'lookbook']),
+    platform: z.enum(['instagram', 'facebook', 'pinterest', 'lookbook']),
     contentType: z.enum(['Post', 'Story', 'Reel', 'Pin', 'VideoPost', 'ManualHandoff']),
   })).min(1),
   content: z.record(z.object({
