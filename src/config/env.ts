@@ -60,8 +60,9 @@ const envSchema = z.object({
   INSTAGRAM_ACCESS_TOKEN: z.string().optional(),
   INSTAGRAM_VERIFY_TOKEN: z.string().optional(),
   // Facebook
-  FACEBOOK_APP_ID: z.string().optional(),
-  FACEBOOK_APP_SECRET: z.string().optional(),
+  FACEBOOK_PAGE_ID: z.string().optional(),
+  FACEBOOK_PAGE_ACCESS_TOKEN: z.string().optional(),
+  FACEBOOK_USER_ACCESS_TOKEN: z.string().optional(),
   // Pinterest
   PINTEREST_APP_ID: z.string().optional(),
   PINTEREST_APP_SECRET: z.string().optional(),
