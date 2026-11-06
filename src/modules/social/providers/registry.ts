@@ -32,16 +32,6 @@ const REGISTRY: Readonly<Record<PlatformKey, PlatformMeta>> = Object.freeze({
     manual: false,
     status: 'approval_pending',
   }),
-  lookbook: Object.freeze({
-    key: 'lookbook',
-    displayName: 'Lookbook',
-    color: '#000000',
-    contentTypes: Object.freeze(['ManualHandoff']) as PlatformMeta['contentTypes'],
-    jpegOnly: false,
-    videoContentTypes: Object.freeze([] as ContentType[]) as PlatformMeta['videoContentTypes'],
-    manual: true,
-    status: 'manual_required',
-  }),
 });
 
 export function getRegistry(): Readonly<Record<PlatformKey, PlatformMeta>> {

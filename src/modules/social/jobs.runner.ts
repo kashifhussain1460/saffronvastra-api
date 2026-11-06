@@ -9,7 +9,6 @@ import { fakeAdapter } from './providers/fake.adapter.js';
 import { instagramAdapter } from './providers/instagram.adapter.js';
 import { facebookAdapter } from './providers/facebook.adapter.js';
 import { pinterestAdapter } from './providers/pinterest.adapter.js';
-import { lookbookAdapter } from './providers/lookbook.adapter.js';
 
 const ADAPTERS: Record<string, ProviderAdapter> = {};
 
@@ -21,7 +20,6 @@ if (process.env.NODE_ENV !== 'production') {
 ADAPTERS['instagram'] = instagramAdapter;
 ADAPTERS['facebook'] = facebookAdapter;
 ADAPTERS['pinterest'] = pinterestAdapter;
-ADAPTERS['lookbook'] = lookbookAdapter;
 
 /**
  * Claims up to `batchSize` pending jobs, processes each via its registered adapter,

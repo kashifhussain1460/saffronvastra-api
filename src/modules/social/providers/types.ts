@@ -1,4 +1,4 @@
-export type PlatformKey = 'instagram' | 'facebook' | 'pinterest' | 'lookbook';
+export type PlatformKey = 'instagram' | 'facebook' | 'pinterest';
 export type ContentType = 'Post' | 'Story' | 'Reel' | 'Pin' | 'VideoPost' | 'ManualHandoff';
 export type AccountStatus = 'ready' | 'approval_pending' | 'manual_required';
 
