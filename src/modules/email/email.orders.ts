@@ -14,6 +14,7 @@ import {
 import { adminRecipients, queueEmail } from "./email.service.js";
 import { paymentFailedEmail } from "./email.templates.extra.js";
 import { background } from "../../common/background.js";
+import { variantDetail } from "./email.variant.js";
 
 const PAYMENT_LABELS: Record<string, string> = { COD: "Cash on Delivery", CASHFREE: "Online payment" };
 
@@ -42,7 +43,7 @@ function orderEmailData(order: LoadedOrder): { data: OrderEmailData; recipient: 
       customerName: address.fullName || order.user?.profile?.displayName || "there",
       items: order.items.map((it) => ({
         title: it.productTitle,
-        detail: [it.size && `Size ${it.size}`, it.colour].filter(Boolean).join(" · "),
+        detail: variantDetail(it.size, it.colour),
         quantity: it.quantity,
         totalMinor: it.lineTotalMinor,
       })),

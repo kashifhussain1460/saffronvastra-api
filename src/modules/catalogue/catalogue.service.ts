@@ -613,7 +613,9 @@ function normalizeImages(images: any, title: string) {
   });
 }
 
-function normalizeVariants(variants: any) {
+// Exported for tests. While colour variants are switched off in the admin panel (Website lib/features.ts),
+// every size arrives under the default colour "Standard" / #1A1A1A, or with no colour at all.
+export function normalizeVariants(variants: any) {
   if (variants === undefined) return undefined;
   if (!Array.isArray(variants)) throw httpError(400, "Variants must be a list");
   if (variants.length === 0) throw httpError(400, "At least one size/colour variant is required");

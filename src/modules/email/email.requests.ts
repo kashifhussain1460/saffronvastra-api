@@ -10,6 +10,7 @@ import {
   type RequestEmailData,
 } from "./email.templates.extra.js";
 import { background } from "../../common/background.js";
+import { variantDetail } from "./email.variant.js";
 
 // Emails for refunds and for cancellation / return / exchange requests. Never throw, never delay the caller.
 
@@ -74,7 +75,7 @@ async function requestData(requestId: string) {
     resolution: request.resolution,
     items: request.items.map((i) => ({
       title: i.orderItem.productTitle,
-      detail: [i.orderItem.size && `Size ${i.orderItem.size}`, i.orderItem.colour].filter(Boolean).join(" · "),
+      detail: variantDetail(i.orderItem.size, i.orderItem.colour),
       quantity: i.quantity,
     })),
     outsideWindow: request.outsideWindow,

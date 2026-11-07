@@ -19,6 +19,7 @@ export interface SocialProductRow {
   coverImageUrl?: string;
   coverImageMime?: string;
   variantCount: number;
+  publishedPlatforms: string[];
 }
 
 export interface SocialProductPage {
@@ -91,7 +92,33 @@ export async function querySocialProducts(
 
   const productIds = products.map((p) => p.id);
 
-  // ── Query 3: cover images ──────────────────────────────────────────────────
+  // ── Query 3: published platforms per product ───────────────────────────────
+  // Find all platforms that have at least one completed job for these products.
+  const publishedJobs = await prisma.socialPublishJob.findMany({
+    where: {
+      status: 'completed',
+      variant: { campaignProduct: { product: { id: { in: productIds } } } },
+    },
+    select: {
+      variant: {
+        select: {
+          platform: true,
+          campaignProduct: { select: { productId: true } },
+        },
+      },
+    },
+  });
+
+  // Map productId → Set<platform>
+  const platformMap = new Map<string, Set<string>>();
+  for (const job of publishedJobs) {
+    const pid = job.variant.campaignProduct.productId;
+    const plat = job.variant.platform;
+    if (!platformMap.has(pid)) platformMap.set(pid, new Set());
+    platformMap.get(pid)!.add(plat);
+  }
+
+  // ── Query 4: cover images ──────────────────────────────────────────────────
   // Fetch all images for the page's product IDs ordered so the preferred image
   // per product comes first: isCover=true before isCover=false, then lowest
   // sortOrder. We pick the first occurrence per product in-memory.
@@ -129,6 +156,7 @@ export async function querySocialProducts(
       coverImageUrl: cover?.url ?? undefined,
       coverImageMime: cover?.mediaAsset?.mimeType ?? undefined,
       variantCount: p._count.variants,
+      publishedPlatforms: Array.from(platformMap.get(p.id) ?? []),
     };
   });
 

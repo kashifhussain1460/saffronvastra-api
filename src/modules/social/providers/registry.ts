@@ -20,7 +20,7 @@ const REGISTRY: Readonly<Record<PlatformKey, PlatformMeta>> = Object.freeze({
     jpegOnly: false,
     videoContentTypes: Object.freeze([] as ContentType[]) as PlatformMeta['videoContentTypes'],
     manual: false,
-    status: 'approval_pending',
+    status: 'ready',
   }),
   pinterest: Object.freeze({
     key: 'pinterest',
@@ -30,7 +30,7 @@ const REGISTRY: Readonly<Record<PlatformKey, PlatformMeta>> = Object.freeze({
     jpegOnly: false,
     videoContentTypes: Object.freeze([] as ContentType[]) as PlatformMeta['videoContentTypes'],
     manual: false,
-    status: 'approval_pending',
+    status: 'ready',
   }),
 });
 

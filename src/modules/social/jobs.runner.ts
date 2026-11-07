@@ -103,10 +103,14 @@ export async function runJobBatch(batchSize: number): Promise<number> {
 
       // Publish via adapter
       try {
+        console.log(`[runner] publishing job ${jobId} (${job.provider}/${job.variant.contentType}) variant ${job.variant.id}`);
         const result = await adapter.publish(payload, accessToken);
         await completeJob(jobId, result);
+        console.log(`[runner] ✓ job ${jobId} published: ${result.externalPostId}`);
       } catch (err) {
-        await failJob(jobId, adapter.normalizeError(err));
+        const normalized = adapter.normalizeError(err);
+        console.error(`[runner] ✗ job ${jobId} failed [${normalized.code}] retryable=${normalized.retryable}: ${normalized.message}`);
+        await failJob(jobId, normalized);
       }
     }),
   );

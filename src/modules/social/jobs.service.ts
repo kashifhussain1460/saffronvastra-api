@@ -147,6 +147,52 @@ export async function retryJob(jobId: string, campaignId: string): Promise<void>
   }
 }
 
+/**
+ * Recompute and persist a campaign's status from its jobs' statuses.
+ *  - any job still pending/processing/held → 'publishing'
+ *  - at least one published, none in flight  → 'published' (partial successes count)
+ *  - all terminal and none published         → 'failed'
+ *  - no jobs at all                          → left unchanged
+ */
+export async function recomputeCampaignStatus(campaignId: string): Promise<void> {
+  const jobs = await prisma.socialPublishJob.findMany({
+    where: { variant: { campaignProduct: { campaignId } } },
+    select: { status: true },
+  });
+
+  if (jobs.length === 0) return;
+
+  const inFlight = jobs.some(j => ['pending', 'processing', 'held'].includes(j.status));
+  const anyPublished = jobs.some(j => j.status === 'published');
+
+  let status: string;
+  if (inFlight) status = 'publishing';
+  else if (anyPublished) status = 'published';
+  else status = 'failed';
+
+  await prisma.socialCampaign.update({ where: { id: campaignId }, data: { status } });
+}
+
+/** Resolve the campaign id a job belongs to (for post-run status recompute). */
+export async function campaignIdForJob(jobId: string): Promise<string | null> {
+  const row = await prisma.socialPublishJob.findUnique({
+    where: { id: jobId },
+    select: { variant: { select: { campaignProduct: { select: { campaignId: true } } } } },
+  });
+  return row?.variant.campaignProduct.campaignId ?? null;
+}
+
+/** Count jobs ready to be processed (pending and due) for a campaign. */
+export async function countPublishableJobs(campaignId: string): Promise<number> {
+  return prisma.socialPublishJob.count({
+    where: {
+      status: 'pending',
+      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }],
+      variant: { campaignProduct: { campaignId } },
+    },
+  });
+}
+
 /** Release all held jobs for a campaign so claimJobs can pick them up. */
 export async function releaseHeldJobs(campaignId: string): Promise<number> {
   const result = await prisma.socialPublishJob.updateMany({

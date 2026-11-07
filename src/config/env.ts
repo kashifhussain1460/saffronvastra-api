@@ -59,6 +59,8 @@ const envSchema = z.object({
   INSTAGRAM_ACCOUNT_ID: z.string().optional(),
   INSTAGRAM_ACCESS_TOKEN: z.string().optional(),
   INSTAGRAM_VERIFY_TOKEN: z.string().optional(),
+  // Meta Graph API version shared by the Instagram/Facebook adapters (e.g. "v23.0").
+  META_GRAPH_API_VERSION: z.string().optional(),
   // Facebook
   FACEBOOK_PAGE_ID: z.string().optional(),
   FACEBOOK_PAGE_ACCESS_TOKEN: z.string().optional(),
@@ -66,6 +68,15 @@ const envSchema = z.object({
   // Pinterest
   PINTEREST_APP_ID: z.string().optional(),
   PINTEREST_APP_SECRET: z.string().optional(),
+  // Simplest setup: a direct OAuth access token (scopes pins:write, boards:read). Used as-is when set.
+  PINTEREST_ACCESS_TOKEN: z.string().optional(),
+  // Optional refresh-token flow: when no access token is set, the backend mints one from
+  // PINTEREST_APP_ID + PINTEREST_APP_SECRET + this refresh token.
+  PINTEREST_REFRESH_TOKEN: z.string().optional(),
+  // Target board to pin to.
+  PINTEREST_BOARD_ID: z.string().optional(),
+  // Optional: override the Pinterest API host (e.g. the sandbox) in non-production.
+  PINTEREST_API_BASE: z.string().optional(),
   VERCEL: z.string().optional(), // set to "1" by Vercel itself
 
   // Delivery charges toggle (test mode for live 2-rupee transactions or promotional zero-shipping).

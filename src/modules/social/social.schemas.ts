@@ -25,6 +25,12 @@ export const listProductsSchema = z.object({
   ids: z.string().optional(), // comma-separated UUIDs
 });
 
+export const patchVariantSchema = z.object({
+  caption: z.string().max(2200).nullable().optional(),
+  hashtags: z.array(z.string().max(100)).max(30).optional(),
+  settings: z.record(z.unknown()).optional(),
+});
+
 export const listCampaignsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
