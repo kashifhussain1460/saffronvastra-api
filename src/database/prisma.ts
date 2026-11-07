@@ -15,28 +15,44 @@ declare global {
 //  2. Otherwise the direct APP_DATABASE_URL, with a small connection_limit unless the URL already sets one. Prisma's
 //     default is (CPU cores x 2 + 1) per process, which on a dev machine alone can use up a hosted database's limit.
 export function resolveRuntimeDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const pooled = env.APP_PRISMA_DATABASE_URL?.trim();
-  if (pooled) return pooled;
-
-  const direct = env.APP_DATABASE_URL?.trim();
-  if (!direct) return undefined;
+  // APP_PRISMA_DATABASE_URL is not always the pooler: on some Prisma Postgres setups it is a plain postgres:// address,
+  // so whichever URL is chosen, a postgres:// one still gets the connection cap below.
+  const chosen = env.APP_PRISMA_DATABASE_URL?.trim() || env.APP_DATABASE_URL?.trim();
+  if (!chosen) return undefined;
   try {
-    const url = new URL(direct);
-    if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") return direct;
+    const url = new URL(chosen);
+    if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") return chosen;
     if (!url.searchParams.has("connection_limit")) {
       const limit = Number(env.DB_CONNECTION_LIMIT) > 0 ? String(Number(env.DB_CONNECTION_LIMIT)) : env.VERCEL ? "2" : "5";
       url.searchParams.set("connection_limit", limit);
     }
     return url.toString();
   } catch {
-    return direct;
+    return chosen;
   }
 }
+
+// One line at startup saying how the API connects (scheme, host, pool size only; never the user, password or api_key),
+// so the deployment logs show whether the pooled address is in use.
+export function describeDatabaseUrl(url: string | undefined): string {
+  if (!url) return "schema default (APP_DATABASE_URL via schema.prisma)";
+  try {
+    const u = new URL(url);
+    if (u.protocol === "prisma+postgres:" || u.protocol === "prisma:") return `pooled (${u.protocol}//${u.host})`;
+    const kind = u.hostname.startsWith("pooled.") ? "pooled" : "direct";
+    return `${kind} (${u.protocol}//${u.host}, connection_limit=${u.searchParams.get("connection_limit") ?? "default"})`;
+  } catch {
+    return "unparseable URL";
+  }
+}
+
+const runtimeUrl = resolveRuntimeDatabaseUrl();
+if (!global.__prisma) console.log(`[db] runtime connection: ${describeDatabaseUrl(runtimeUrl)}`);
 
 export const prisma =
   global.__prisma ||
   new PrismaClient({
-    datasourceUrl: resolveRuntimeDatabaseUrl(),
+    datasourceUrl: runtimeUrl,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
