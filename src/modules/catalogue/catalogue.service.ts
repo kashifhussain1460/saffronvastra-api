@@ -44,15 +44,16 @@ export async function getCategories(includeDrafts = false) {
     slug: c.slug,
     parentId: c.parentId,
     shortDescription: c.shortDescription,
+    // public: the storefront shows it as the category page introduction
+    detailedDescription: c.detailedDescription,
     image: c.image,
     bannerImage: c.bannerImage,
     sortOrder: c.sortOrder,
     status: c.status,
     productsCount: c._count.products,
     childrenCount: c._count.children,
-    ...(includeDrafts
-      ? { parentId: c.parentId, detailedDescription: c.detailedDescription, childrenCount: c._count.children }
-      : {}),
+    // the sitemap's lastmod for the category page
+    updatedAt: c.updatedAt,
   }));
 }
 
