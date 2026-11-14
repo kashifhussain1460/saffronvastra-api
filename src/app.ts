@@ -189,6 +189,26 @@ app.use("/health", healthRouter);
 const apiV1Router = express.Router();
 apiV1Router.use(generalApiLimiter);
 apiV1Router.use(optionalAuth);
+
+// Edge caching for anonymous reads of the public catalogue. The CDN keys on the URL alone, so a response is only made
+// shareable when the request carries no session (an administrator previewing a Draft must never be cached for others),
+// and only a 200 is cached (never an error). Everything else keeps the default (not cached).
+const PUBLIC_CACHEABLE = /^\/(products|categories|collections|journal|settings)(\/|$)/;
+const PUBLIC_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
+apiV1Router.use((req: Request, res: Response, next: NextFunction) => {
+  if ((req.method !== "GET" && req.method !== "HEAD") || !PUBLIC_CACHEABLE.test(req.path)) return next();
+  const hasSession = Boolean(req.headers.cookie?.includes("saffron_session=") || req.headers.authorization);
+  if (hasSession) {
+    res.setHeader("Cache-Control", "private, no-store");
+    return next();
+  }
+  const json = res.json.bind(res);
+  res.json = ((body: any) => {
+    if (res.statusCode === 200 && !res.getHeader("Cache-Control")) res.setHeader("Cache-Control", PUBLIC_CACHE_CONTROL);
+    return json(body);
+  }) as Response["json"];
+  next();
+});
 apiV1Router.use("/health", healthRouter);
 apiV1Router.use("/auth/login", authRateLimiter);
 apiV1Router.use("/auth/signup", authRateLimiter);

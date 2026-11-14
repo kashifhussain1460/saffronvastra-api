@@ -205,6 +205,9 @@ model Product {
   seoDescription    String?
   focusKeywords     String[]  @default([])
   displayOrder      Int       @default(0) // lower number is listed first
+  // Garment measurements per size, in inches: { note?, rows: [{ size, fitsChestMin?, fitsChestMax?, chest, shoulder?, sleeve?, length }] }.
+  // Seeded from the standard Indian unisex chart; the owner can replace them with each piece's real measurements.
+  measurements      Json?
   deletedAt         DateTime? // soft delete: set instead of removing the row
   deletedByUserId   String?
   createdAt         DateTime  @default(now())

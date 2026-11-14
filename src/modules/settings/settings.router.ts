@@ -18,7 +18,7 @@ publicSettingsRouter.get("/", async (_req: Request, res: Response) => {
     const { values } = await getAllSettings();
     const data: Record<string, unknown> = {};
     for (const key of PUBLIC_GROUPS) data[key] = values[key];
-    res.setHeader("Cache-Control", "no-store");
+    // cache headers for this route are set centrally (app.ts): shared for anonymous visitors, private with a session
     return res.status(200).json({ status: "success", data });
   } catch (error) {
     console.error("[settings] public read failed", error);

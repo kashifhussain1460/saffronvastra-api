@@ -1,5 +1,6 @@
 import { prisma } from "../../database/prisma.js";
 import { withRealRatings } from "../reviews/reviews.router.js";
+import { measurementsForWrite, normalizeMeasurements } from "./measurements.js";
 
 export interface ProductFilterParams {
   categorySlug?: string;
@@ -682,6 +683,7 @@ export async function createProduct(data: any) {
   if (!variants) throw httpError(400, "At least one size/colour variant is required");
   if (fields.status === "Active" && images.length === 0) throw httpError(400, PUBLISH_NEEDS_IMAGE);
   const collectionIds = (await normalizeCollectionIds(data.collectionIds)) ?? [];
+  const measurements = normalizeMeasurements(data.measurements);
   await assertCategoryExists(fields.categoryId);
 
   const slugOwner = await prisma.product.findUnique({ where: { slug: fields.slug }, select: { id: true, deletedAt: true } });
@@ -696,7 +698,9 @@ export async function createProduct(data: any) {
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const product = await tx.product.create({ data: fields });
+      const product = await tx.product.create({
+        data: { ...fields, ...(measurements !== undefined ? { measurements: measurementsForWrite(measurements) } : {}) },
+      });
 
       if (images.length > 0) {
         await tx.productImage.createMany({
@@ -788,6 +792,8 @@ export async function updateProduct(id: string, data: any) {
   });
   const images = normalizeImages(data.images, fields.title);
   const variants = normalizeVariants(data.variants);
+  // absent = keep the stored measurements; null or no rows = clear them
+  const measurements = normalizeMeasurements(data?.measurements);
   const collectionIds = await normalizeCollectionIds(data.collectionIds);
   if (fields.status === "Active") {
     const imageCount = images ? images.length : await prisma.productImage.count({ where: { productId: id } });
@@ -801,7 +807,10 @@ export async function updateProduct(id: string, data: any) {
 
   try {
     return await prisma.$transaction(async (tx) => {
-      await tx.product.update({ where: { id }, data: fields });
+      await tx.product.update({
+        where: { id },
+        data: { ...fields, ...(measurements !== undefined ? { measurements: measurementsForWrite(measurements) } : {}) },
+      });
 
       if (images) {
         await tx.productImage.deleteMany({ where: { productId: id } });
